@@ -14,6 +14,8 @@ public class CaptureArea : NetworkBehaviour
     public int EnemyNum { get { return _enemyNum; } }
     private int candlesToLight;
     private List<GameObject> _candles = new List<GameObject>();
+    public int CandleCount { get { return transform.GetChild(0).childCount; } }
+    public int LitCandleCount { get { return Mathf.Clamp((int)(_progress / 100f * CandleCount), 0, CandleCount); } }
     private Sprite[] _sprites = new Sprite[2];
     private SpriteRenderer _renderer;
     private float _scale;
@@ -119,7 +121,7 @@ public class CaptureArea : NetworkBehaviour
                     GameManager.Instance.ServerSetMatchState(GameManager.MatchState.Lose);
                 }
                 
-                candlesToLight =  (int)(  _progress / 100 * _candles.Count);
+                candlesToLight = LitCandleCount;
 
                 for (int i = 0; i < candlesToLight; i++)
                 {

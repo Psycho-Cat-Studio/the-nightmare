@@ -20,7 +20,7 @@ public class PauseGame : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (Input.GetKeyDown(KeyCode.Escape) && !SettingsMenu.ConsumeEscape())
         {
             menuActive = !menuActive;
         }

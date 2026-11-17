@@ -24,7 +24,7 @@ public class Skip : MonoBehaviour
     void Update()
     {
         VideoPlayer video = _player.GetComponent<VideoPlayer>();
-        if (Input.GetKeyDown(KeyCode.Escape) || (!video.isPlaying && Time.unscaledTime > _startDeadline))
+        if ((Input.GetKeyDown(KeyCode.Escape) && !SettingsMenu.ConsumeEscape()) || (!video.isPlaying && Time.unscaledTime > _startDeadline))
         {
             Kill(video);
         }

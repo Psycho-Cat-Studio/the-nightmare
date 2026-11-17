@@ -73,6 +73,8 @@ public static class GameSettings
             int level = Mathf.Clamp(value, 0, QualitySettings.names.Length - 1);
             PlayerPrefs.SetInt(QUALITY_KEY, level);
             QualitySettings.SetQualityLevel(level, true);
+            ApplyFrameRate();
+            GraphicsPreferences.Changed();
         }
     }
 
@@ -88,6 +90,8 @@ public static class GameSettings
 
     public static void ApplyFrameRate()
     {
+        // The explicit frame limit owns pacing; quality levels must not enable V-Sync.
+        QualitySettings.vSyncCount = 0;
         Application.targetFrameRate = MaxFps > 0 ? MaxFps : -1;
     }
 
@@ -99,8 +103,9 @@ public static class GameSettings
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void ApplyOnStartup()
     {
+        GraphicsPreferences.ApplySavedDisplay();
         AudioListener.volume = MasterVolume;
-        ApplyFrameRate();
         if (PlayerPrefs.HasKey(QUALITY_KEY)) QualitySettings.SetQualityLevel(QualityLevel, true);
+        ApplyFrameRate();
     }
 }

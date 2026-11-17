@@ -84,8 +84,9 @@ All of this runs on the server. Clients get the state through `GameManager`'s Sy
 | `Enemy` | `EnemyControllerServer` (NavMesh AI, server only), `EnemyControllerClient` (visuals), dissolve on death. |
 | `Traps` | Teddy bear (defends an area), snares (stop enemies), explosive barrels, `ExplosionDamage`. |
 | `Building` | Placement grid for traps (`PlacementController` in the root folder uses it). |
-| `UI` | HUD (`BulletsHUD`, `HealthBar`, `ClipsManager`, `ClockManager`), menus, `SettingsMenu` + `GameSettings` (IMGUI settings window, PlayerPrefs), `Nameplates`, `FullscreenUIFitter` (keeps full-screen art covering non-16:9 screens). |
+| `UI` | HUD (`BulletsHUD`, `HealthBar`, `ClipsManager`, `ClockManager`), menus, `SettingsMenu` + `SettingsMenuView` + `GameSettings` (uGUI settings prefab, PlayerPrefs), `Nameplates`, `FullscreenUIFitter` (keeps full-screen art covering non-16:9 screens). |
 | `Networking` | Network manager, LAN discovery, lobby UI (`HostGame`, `JoinGame`, `ServerListItem`). |
+| `Graphics` | Runtime pipeline/profile clones, shared post-processing, eye adaptation and opt-in graphics integration test. See [GRAPHICS_SETTINGS.md](GRAPHICS_SETTINGS.md). |
 | `Editor` | `NightmareBuild` (CI and menu builds), `NetworkIdBaker` (Mirror asset ids before builds). |
 
 ## Third-party code in `Assets`
@@ -94,7 +95,6 @@ All of this runs on the server. Clients get the state through `GameManager`'s Sy
 |---|---|
 | `Mirror` | Networking, MIT. Update it by replacing the folder from a Mirror release. |
 | `TextMesh Pro` | Essential resources from uGUI 2.6. |
-| `PostProcessing` | Post Processing Stack v1, for the built-in render pipeline. |
 | `QuickOutline` | Outline effect. |
 | `KY_effects`, `Particle Dissolve Shader…`, `Standard Assets` (trimmed) | Effects and particles. |
 
@@ -108,6 +108,6 @@ All of this runs on the server. Clients get the state through `GameManager`'s Sy
 ## Known gaps
 
 See [ROADMAP.md](ROADMAP.md). The main ones:
-- The render pipeline is still built-in (not URP).
-- The settings window uses plain IMGUI styling.
+- Rendering uses URP; configuration, deliberate visual differences and checks are in [URP.md](URP.md).
+- Settings use the shared uGUI prefab; visual/runtime checks are recorded in [URP-FINALIZATION.md](URP-FINALIZATION.md).
 - Internet play needs port forwarding or a VPN.

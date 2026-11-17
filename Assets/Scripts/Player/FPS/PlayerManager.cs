@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -138,7 +138,7 @@ public class PlayerManager : NetworkBehaviour
             }
         }
 
-        if (Input.GetKeyDown(KeyCode.Backspace) && CustomNetworkManager.Instance != null)
+        if (!SettingsMenu.IsOpen && Input.GetKeyDown(KeyCode.Backspace) && CustomNetworkManager.Instance != null)
             CustomNetworkManager.Instance.LeaveToMainMenu();
         
     }
@@ -204,7 +204,7 @@ public class PlayerManager : NetworkBehaviour
         _isDead = true;
         for (int i = 0; i < _disableOnDeath.Length; i++)
             _disableOnDeath[i].enabled = false;
-        _rigidbody.velocity = Vector3.zero;
+        _rigidbody.linearVelocity = Vector3.zero;
         _rigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;
         _rigidbody.isKinematic = true;
 

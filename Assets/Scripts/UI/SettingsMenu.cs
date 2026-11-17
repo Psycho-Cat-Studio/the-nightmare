@@ -1,203 +1,211 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Settings window (IMGUI, so it needs no scene or prefab changes). It opens from a SETTINGS button that
-// is added to the main menu at runtime (a copy of the Credits button with Resources/UI/settingsButton),
-// and from a small button in the in-game pause menu.
+// Persistent controller; the uGUI view is a reusable prefab with the game's menu artwork/font.
 public class SettingsMenu : MonoBehaviour
 {
-    private const string MAIN_MENU_SCENE = "MainMenu";
-    private const string LOBBY_SCENE = "LobbyTests";
-    private const float WINDOW_WIDTH = 440f;
-    private const int WINDOW_ID = 0x5E77;
-
+    public static bool IsOpen { get { return _instance != null && _instance._open; } }
+    private static SettingsMenu _instance;
+    private static int _escapeFrame = -1;
     private bool _open;
-    private Rect _window;
+    private SettingsMenuView _view;
+    private GameObject _previousSelection;
     private Resolution[] _resolutions;
     private int _resolutionIndex;
     private bool _fullscreen;
-    private GUIStyle _buttonStyle;
-    private GUIStyle _windowStyle;
-    private const float MENU_BUTTON_SPACING = 190f;
+    private bool _displayTrial;
+    private float _displayDeadline;
+    private int _oldWidth, _oldHeight;
+    private float _oldRenderScale;
+    private FullScreenMode _oldMode;
+    public Resolution[] Resolutions { get { return _resolutions; } }
+    public int ResolutionIndex { get { return _resolutionIndex; } set { _resolutionIndex = value; } }
+    public bool Fullscreen { get { return _fullscreen; } set { _fullscreen = value; RefreshResolutions(); } }
+    public bool DisplayTrial { get { return _displayTrial; } }
+    public int DisplaySeconds { get { return Mathf.Max(0, Mathf.CeilToInt(_displayDeadline - Time.realtimeSinceStartup)); } }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Create()
     {
+        if (_instance != null) return;
         var go = new GameObject("SettingsMenu");
         DontDestroyOnLoad(go);
-        go.AddComponent<SettingsMenu>();
+        _instance = go.AddComponent<SettingsMenu>();
     }
-
     private void OnEnable()
     {
+        _instance = this;
         SceneManager.sceneLoaded += OnSceneLoaded;
-        AddMainMenuButton();
+        AddMenuButtons();
     }
-
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        CloseWindow();
     }
-
+    private void OnApplicationFocus(bool focused) { if (!focused) GameSettings.Save(); }
+    private void OnApplicationQuit() { GameSettings.Save(); }
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        AddMainMenuButton();
+        CloseWindow();
+        AddMenuButtons();
     }
-
-    // Main menu: Play / Credits / Settings / Quit, in the style of the other buttons.
-    private void AddMainMenuButton()
+    private void AddMenuButtons()
     {
-        if (SceneManager.GetActiveScene().name != MAIN_MENU_SCENE) return;
-        GameObject credits = GameObject.Find("CreditsButton");
-        GameObject quit = GameObject.Find("QuitButton");
         var sprite = Resources.Load<Sprite>("UI/settingsButton");
-        if (credits == null || quit == null || sprite == null || GameObject.Find("SettingsButton") != null) return;
-
-        var quitRect = (RectTransform) quit.transform;
-        GameObject settings = Instantiate(credits, credits.transform.parent, false);
-        settings.name = "SettingsButton";
-        ((RectTransform) settings.transform).anchoredPosition = quitRect.anchoredPosition;
-        quitRect.anchoredPosition += Vector2.down * MENU_BUTTON_SPACING;
-
-        var button = settings.GetComponent<Button>();
-        button.onClick = new Button.ButtonClickedEvent();
-        button.onClick.AddListener(OpenWindow);
-        foreach (Image image in settings.GetComponentsInChildren<Image>(true))
-            if (image.sprite != null && image.sprite.name.ToLowerInvariant().Contains("credit")) image.sprite = sprite;
-        button.image.sprite = sprite;
-        // Swap-sprite transitions would bring the Credits art back on hover.
-        if (button.transition == Selectable.Transition.SpriteSwap) button.transition = Selectable.Transition.ColorTint;
+        if (SceneManager.GetActiveScene().name == "MainMenu")
+        {
+            var credits = GameObject.Find("CreditsButton");
+            var quit = GameObject.Find("QuitButton");
+            if (credits == null || quit == null || sprite == null || GameObject.Find("SettingsButton") != null) return;
+            var settings = Instantiate(credits, credits.transform.parent, false);
+            settings.name = "SettingsButton";
+            ((RectTransform)settings.transform).anchoredPosition = ((RectTransform)quit.transform).anchoredPosition;
+            ((RectTransform)quit.transform).anchoredPosition += Vector2.down * 190f;
+            var button = settings.GetComponent<Button>();
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(OpenWindow);
+            button.transition = Selectable.Transition.ColorTint;
+            foreach (Image image in settings.GetComponentsInChildren<Image>(true))
+                if (image.sprite != null && image.sprite.name.ToLowerInvariant().Contains("credit")) image.sprite = sprite;
+            button.image.sprite = sprite;
+            return;
+        }
+        // PauseMenu can be inactive when the controller is recreated or a scene is loaded.
+        var pause = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(g => g.name == "PauseMenu" && g.scene.IsValid());
+        if (pause == null || pause.transform.Find("SettingsButton") != null) return;
+        var go = new GameObject("SettingsButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        go.transform.SetParent(pause.transform, false);
+        var rect = (RectTransform)go.transform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(230f, 64f);
+        rect.anchoredPosition = new Vector2(0, -230);
+        go.GetComponent<Image>().sprite = sprite;
+        go.GetComponent<Image>().preserveAspect = true;
+        var pauseButton = go.GetComponent<Button>();
+        pauseButton.targetGraphic = go.GetComponent<Image>();
+        pauseButton.onClick.AddListener(OpenWindow);
     }
-
     private bool CanOpen
     {
         get
         {
             string scene = SceneManager.GetActiveScene().name;
-            return scene == MAIN_MENU_SCENE || scene == LOBBY_SCENE || PauseGame.menuActive;
+            return scene == "MainMenu" || scene == "LobbyTests" || PauseGame.menuActive;
         }
     }
-
-    private void OpenWindow()
+    public void OpenWindow()
     {
+        if (!CanOpen || _open) return;
+        if (_view == null)
+        {
+            var prefab = Resources.Load<SettingsMenuView>("UI/SettingsPanel");
+            if (prefab == null) { Debug.LogError("Missing UI/SettingsPanel prefab"); return; }
+            _view = Instantiate(prefab, transform, false);
+            _view.Initialize(this);
+        }
+        _previousSelection = EventSystem.current == null ? null : EventSystem.current.currentSelectedGameObject;
         _open = true;
-        _resolutions = Screen.resolutions
-            .GroupBy(r => new { r.width, r.height })
-            .Select(g => g.OrderByDescending(r => r.refreshRate).First())
-            .ToArray();
-        _resolutionIndex = System.Array.FindIndex(_resolutions,
-            r => r.width == Screen.width && r.height == Screen.height);
-        if (_resolutionIndex < 0) _resolutionIndex = _resolutions.Length - 1;
+        if (GameManager.LocalPlayer != null) PauseGame.menuActive = true;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
         _fullscreen = Screen.fullScreen;
-        _window = new Rect((Screen.width - WINDOW_WIDTH) / 2f, Screen.height * 0.15f, WINDOW_WIDTH, 10f);
+        RefreshResolutions();
+        _view.gameObject.SetActive(true);
+        _view.ShowTab(0);
+    }
+    private void RefreshResolutions()
+    {
+        var available = _fullscreen ? new List<Resolution>() : Screen.resolutions.ToList();
+        if (_fullscreen)
+        {
+            int width = Screen.currentResolution.width, height = Screen.currentResolution.height;
+            foreach (float scale in new[] { 0.5f, 0.625f, 0.75f, 0.875f, 1f })
+            {
+                int w = Mathf.RoundToInt(width * scale), h = Mathf.RoundToInt(height * scale);
+                if (w >= 640 && h >= 360) available.Add(new Resolution { width = w, height = h });
+            }
+            available.Add(new Resolution { width = Mathf.RoundToInt(width * GraphicsPreferences.RenderScale), height = Mathf.RoundToInt(height * GraphicsPreferences.RenderScale) });
+        }
+        else
+        {
+            available.Add(new Resolution { width = Screen.width, height = Screen.height });
+            int maxWidth = Mathf.Max(Screen.currentResolution.width, Screen.width);
+            int maxHeight = Mathf.Max(Screen.currentResolution.height, Screen.height);
+            foreach (var size in new[] { new Vector2Int(640,360), new Vector2Int(854,480), new Vector2Int(960,540),
+                new Vector2Int(1024,576), new Vector2Int(1280,720), new Vector2Int(1280,800), new Vector2Int(1600,900), new Vector2Int(1920,1080) })
+                if (size.x <= maxWidth && size.y <= maxHeight) available.Add(new Resolution { width = size.x, height = size.y });
+        }
+        _resolutions = available.Where(r => r.width > 0 && r.height > 0)
+            .GroupBy(r => new { r.width, r.height }).Select(g => g.First()).OrderBy(r => r.width).ThenBy(r => r.height).ToArray();
+        int selectedWidth = _fullscreen ? Mathf.RoundToInt(Screen.currentResolution.width * GraphicsPreferences.RenderScale) : Screen.width;
+        _resolutionIndex = System.Array.FindIndex(_resolutions, r => r.width == selectedWidth);
+        if (_resolutionIndex < 0) _resolutionIndex = _resolutions.Length - 1;
+    }
+    public void CloseWindow()
+    {
+        RevertDisplay();
+        _open = false;
+        if (_view != null) _view.gameObject.SetActive(false);
+        if (_previousSelection != null && EventSystem.current != null) EventSystem.current.SetSelectedGameObject(_previousSelection);
+        GameSettings.Save();
+    }
+    // Both Update and PauseGame call this; consumption is independent of script execution order.
+    public static bool ConsumeEscape()
+    {
+        if (_escapeFrame == Time.frameCount) return true;
+        if (!IsOpen) return false;
+        _escapeFrame = Time.frameCount;
+        _instance.CloseWindow();
+        return true;
+    }
+    private void RevertDisplay()
+    {
+        if (!_displayTrial) return;
+        Screen.SetResolution(_oldWidth, _oldHeight, _oldMode);
+        GraphicsPreferences.SetRenderScale(_oldRenderScale);
+        _displayTrial = false;
+    }
+    private void ConfirmDisplay()
+    {
+        if (!_displayTrial) return;
+        GraphicsPreferences.SaveDisplay(Screen.width, Screen.height, Screen.fullScreenMode);
+        _displayTrial = false;
+    }
+    private void ApplyDisplay(int width, int height, bool fullscreen)
+    {
+        if (!_displayTrial)
+        {
+            _oldWidth = Screen.width; _oldHeight = Screen.height; _oldMode = Screen.fullScreenMode;
+            _oldRenderScale = GraphicsPreferences.RenderScale;
+            // A quit/crash during an unconfirmed first trial must not become the next launch's resolution.
+            if (!PlayerPrefs.HasKey("display.width")) GraphicsPreferences.SaveDisplay(_oldWidth, _oldHeight, _oldMode);
+        }
+        _displayTrial = true;
+        _displayDeadline = Time.realtimeSinceStartup + 15;
+        GraphicsPreferences.SetRenderScale(fullscreen ? Mathf.Min(width / (float)Screen.currentResolution.width, height / (float)Screen.currentResolution.height) : 1f);
+        Screen.SetResolution(fullscreen ? Screen.currentResolution.width : width,
+            fullscreen ? Screen.currentResolution.height : height,
+            fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
     }
 
+    public void ApplySelectedDisplay()
+    {
+        Resolution resolution = _resolutions[_resolutionIndex];
+        ApplyDisplay(resolution.width, resolution.height, _fullscreen);
+    }
+    public void KeepDisplay() { ConfirmDisplay(); }
+    public void CancelDisplay() { RevertDisplay(); }
     private void Update()
     {
-        if (_open && (!CanOpen || Input.GetKeyDown(KeyCode.Escape)))
-        {
-            _open = false;
-            GameSettings.Save();
-        }
+        if (_displayTrial && Time.realtimeSinceStartup >= _displayDeadline) RevertDisplay();
+        if (_open && !CanOpen) CloseWindow();
+        if (Input.GetKeyDown(KeyCode.Escape)) ConsumeEscape();
+        if (_open && _view != null) _view.UpdateConfirmation();
     }
-
-    private void OnGUI()
-    {
-        if (!CanOpen) return;
-        GUI.depth = -10;
-        if (_buttonStyle == null) CreateStyles();
-
-        if (!_open)
-        {
-            // The main menu has its own SETTINGS button; the pause menu gets a small one.
-            if (PauseGame.menuActive && GUI.Button(new Rect(10f, Screen.height - 50f, 140f, 40f), "Settings", _buttonStyle))
-                OpenWindow();
-            return;
-        }
-        GUI.skin.label.fontSize = 15;
-        _window = GUILayout.Window(WINDOW_ID, _window, DrawWindow, "SETTINGS", _windowStyle);
-    }
-
-    private string _nameField;
-
-    // Dark, almost opaque panel instead of the default grey IMGUI window, so it reads over the menu art.
-    private void CreateStyles()
-    {
-        _buttonStyle = new GUIStyle(GUI.skin.button) { fontSize = 16 };
-        var background = new Texture2D(1, 1);
-        background.SetPixel(0, 0, new Color(0.11f, 0.09f, 0.08f, 0.96f));
-        background.Apply();
-        _windowStyle = new GUIStyle(GUI.skin.window)
-        {
-            fontSize = 22, fontStyle = FontStyle.Bold, padding = new RectOffset(18, 18, 44, 18)
-        };
-        _windowStyle.normal.background = background;
-        _windowStyle.onNormal.background = background;
-        _windowStyle.normal.textColor = _windowStyle.onNormal.textColor = new Color(0.86f, 0.78f, 0.65f);
-    }
-
-    private void DrawWindow(int id)
-    {
-        if (_nameField == null) _nameField = GameSettings.PlayerName;
-        GUILayout.Label("Player name (applies when you join the next game)");
-        _nameField = GUILayout.TextField(_nameField, GameSettings.MAX_NAME_LENGTH);
-        GameSettings.PlayerName = _nameField;
-
-        GUILayout.Space(8);
-        GUILayout.Label("Mouse sensitivity: " + GameSettings.MouseSensitivity.ToString("0.00") + "x");
-        GameSettings.MouseSensitivity = GUILayout.HorizontalSlider(GameSettings.MouseSensitivity, 0.1f, 3f);
-        GameSettings.InvertY = GUILayout.Toggle(GameSettings.InvertY, " Invert mouse Y");
-
-        GUILayout.Space(8);
-        GUILayout.Label("Field of view: " + Mathf.RoundToInt(GameSettings.FieldOfView));
-        GameSettings.FieldOfView = Mathf.Round(
-            GUILayout.HorizontalSlider(GameSettings.FieldOfView, GameSettings.MIN_FOV, GameSettings.MAX_FOV));
-
-        GUILayout.Space(8);
-        GUILayout.Label("Volume: " + Mathf.RoundToInt(GameSettings.MasterVolume * 100f) + "%");
-        float volume = GUILayout.HorizontalSlider(GameSettings.MasterVolume, 0f, 1f);
-        if (!Mathf.Approximately(volume, GameSettings.MasterVolume)) GameSettings.MasterVolume = volume;
-
-        GUILayout.Space(8);
-        GUILayout.Label("Max FPS (ignored while V-Sync is on in the chosen quality level)");
-        int[] fpsOptions = GameSettings.MAX_FPS_OPTIONS;
-        int fpsIndex = System.Array.IndexOf(fpsOptions, GameSettings.MaxFps);
-        string[] fpsLabels = System.Array.ConvertAll(fpsOptions, f => f == 0 ? "Unlimited" : f.ToString());
-        int newFpsIndex = GUILayout.SelectionGrid(fpsIndex, fpsLabels, fpsOptions.Length);
-        if (newFpsIndex != fpsIndex && newFpsIndex >= 0) GameSettings.MaxFps = fpsOptions[newFpsIndex];
-
-        GUILayout.Space(8);
-        string[] qualityNames = QualitySettings.names;
-        if (qualityNames.Length > 0)
-        {
-            GUILayout.Label("Graphics quality");
-            int quality = GUILayout.SelectionGrid(GameSettings.QualityLevel, qualityNames, Mathf.Min(3, qualityNames.Length));
-            if (quality != GameSettings.QualityLevel) GameSettings.QualityLevel = quality;
-        }
-
-        if (_resolutions != null && _resolutions.Length > 0)
-        {
-            GUILayout.Space(8);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("<", GUILayout.Width(30))) _resolutionIndex = Mathf.Max(0, _resolutionIndex - 1);
-            Resolution r = _resolutions[_resolutionIndex];
-            GUILayout.Label(r.width + " x " + r.height, GUILayout.ExpandWidth(true));
-            if (GUILayout.Button(">", GUILayout.Width(30))) _resolutionIndex = Mathf.Min(_resolutions.Length - 1, _resolutionIndex + 1);
-            GUILayout.EndHorizontal();
-            _fullscreen = GUILayout.Toggle(_fullscreen, " Fullscreen");
-            if (GUILayout.Button("Apply resolution"))
-                Screen.SetResolution(r.width, r.height, _fullscreen);
-        }
-
-        GUILayout.Space(12);
-        if (GUILayout.Button("Close", _buttonStyle, GUILayout.Height(32)))
-        {
-            _open = false;
-            GameSettings.Save();
-        }
-        GUI.DragWindow();
-    }
+    private void OnDestroy() { if (_instance == this) _instance = null; }
 }

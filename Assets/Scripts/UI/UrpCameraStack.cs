@@ -37,7 +37,13 @@ public class UrpCameraStack : MonoBehaviour
         }
     }
 
-    private static void Restack()
+    public static Camera WeaponCamera(Camera action)
+    {
+        var child = action == null ? null : action.transform.Find("WeaponCamera");
+        return child == null ? null : child.GetComponent<Camera>();
+    }
+
+    public static void Restack()
     {
         Camera[] cameras = Camera.allCameras;
         foreach (Camera overlay in cameras.Where(c => c.clearFlags == CameraClearFlags.Depth || c.clearFlags == CameraClearFlags.Nothing))

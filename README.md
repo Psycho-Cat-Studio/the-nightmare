@@ -41,6 +41,7 @@ $ git clone https://github.com/msuliborski/the-nightmare
 Open the project in Unity 6000.6.7f1, open `Assets/Scenes/MainMenu.unity` and hit Play, or use the **The Nightmare → Build** menu.
 How the code is organised: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 CI builds, license setup and a Unity-free compile check are described in [docs/BUILDING.md](docs/BUILDING.md).
+Graphics controls and display settings: [docs/GRAPHICS_SETTINGS.md](docs/GRAPHICS_SETTINGS.md).
 Planned improvements: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Built with

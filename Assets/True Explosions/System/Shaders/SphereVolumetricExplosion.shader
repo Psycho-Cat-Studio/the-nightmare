@@ -1,8 +1,6 @@
-﻿//all glory to http://stevencraeynest.wordpress.com/2013/03/29/easy-volumetric-explosion-in-unity3d/
-
-Shader "Custom/Explosion"
-{
-    Properties 
+// Original effect by Steven Craeynest; URP port preserves displacement and ramp animation.
+Shader "Custom/Explosion" {
+Properties
     {
         _RampTex ("Color Ramp", 2D) = "white" {}
         _DispTex ("Displacement Texture", 2D) = "gray" {}
@@ -11,49 +9,40 @@ Shader "Custom/Explosion"
         _Range ("Range (min,max)", Vector) = (0,0.5,0)
         _ClipRange ("ClipRange [0,1]", float) = 0.8
     }
- 
-    SubShader 
-    {
-        Tags { "RenderType"="Opaque" }
-        Cull Off
-        LOD 300
- 
-        CGPROGRAM
-        #pragma surface surf Lambert vertex:disp nolightmap
-        #pragma target 3.0
-        #pragma glsl
- 
-        sampler2D _DispTex;
-        float _Displacement;
-        float3 _ChannelFactor;
-        float2 _Range;
-        float _ClipRange;
- 
-        struct Input 
-        {
-            float2 uv_DispTex;
-        };
- 
-        void disp (inout appdata_full v)
-        {
-            float3 dcolor = tex2Dlod (_DispTex, float4(v.texcoord.xy,0,0));
-            float d = (dcolor.r*_ChannelFactor.r + dcolor.g*_ChannelFactor.g + dcolor.b*_ChannelFactor.b);
-            v.vertex.xyz += v.normal * d * _Displacement;
-        }
- 
-        sampler2D _RampTex;
- 
-        void surf (Input IN, inout SurfaceOutput o) 
-        {
-            float3 dcolor = tex2D (_DispTex, IN.uv_DispTex);
-            float d = (dcolor.r*_ChannelFactor.r + dcolor.g*_ChannelFactor.g + dcolor.b*_ChannelFactor.b) * (_Range.y-_Range.x) + _Range.x;
-            clip (_ClipRange-d);
-            half4 c = tex2D (_RampTex, float2(d,0.5));
-            o.Albedo = c.rgb;
-            o.Emission = c.rgb*c.a;
-            
-        }
-        ENDCG
-    }
-    FallBack "Diffuse"
+
+    SubShader {
+ Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" }
+ Cull Off
+ Pass {
+  HLSLPROGRAM
+  #pragma vertex vert
+  #pragma fragment frag
+  #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+  TEXTURE2D(_DispTex); SAMPLER(sampler_DispTex);
+  TEXTURE2D(_RampTex); SAMPLER(sampler_RampTex);
+  CBUFFER_START(UnityPerMaterial)
+   float4 _DispTex_ST, _RampTex_ST;
+   float4 _ChannelFactor, _Range;
+   float _Displacement, _ClipRange;
+  CBUFFER_END
+  struct Attributes { float4 positionOS:POSITION; float3 normalOS:NORMAL; float2 uv:TEXCOORD0; };
+  struct Varyings { float4 positionCS:SV_POSITION; float2 uv:TEXCOORD0; };
+  Varyings vert(Attributes v) {
+   Varyings o;
+   float d = dot(SAMPLE_TEXTURE2D_LOD(_DispTex, sampler_DispTex, v.uv, 0).rgb, _ChannelFactor.rgb);
+   o.positionCS = TransformObjectToHClip(v.positionOS.xyz + v.normalOS * d * _Displacement);
+   o.uv = TRANSFORM_TEX(v.uv, _DispTex);
+   return o;
+  }
+  half4 frag(Varyings i):SV_Target {
+   float d = dot(SAMPLE_TEXTURE2D(_DispTex, sampler_DispTex, i.uv).rgb, _ChannelFactor.rgb);
+   d = lerp(_Range.x, _Range.y, d);
+   clip(_ClipRange - d);
+   half4 c = SAMPLE_TEXTURE2D(_RampTex, sampler_RampTex, float2(d,0.5));
+   return half4(c.rgb * (1 + c.a), 1);
+  }
+  ENDHLSL
+ }
+}
+Fallback Off
 }

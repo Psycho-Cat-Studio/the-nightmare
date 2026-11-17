@@ -275,13 +275,13 @@ public class CustomNetworkManager : NetworkManager
     public override void Update()
     {
         base.Update();
-        if (Input.GetKeyDown(KeyCode.F1)) _showOverlay = !_showOverlay;
+        if (!SettingsMenu.IsOpen && Input.GetKeyDown(KeyCode.F1)) _showOverlay = !_showOverlay;
     }
 
     // Small connection panel: always in the pre-match lobby and in the pause menu, or toggled with F1.
     private void OnGUI()
     {
-        if (!isNetworkActive) return;
+        if (!isNetworkActive || SettingsMenu.IsOpen) return;
         bool inPreMatchLobby = GameManager.Instance != null && GameManager.Instance.CurrentMachState == GameManager.MatchState.Lobby;
         if (!_showOverlay && !inPreMatchLobby && !PauseGame.menuActive) return;
 
