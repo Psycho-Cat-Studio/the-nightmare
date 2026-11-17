@@ -137,9 +137,71 @@ ModelImporter. Other colors, geometry and lighting remain unchanged. An external
 the correction survive reimports; the importer metadata was upgraded by Unity while preserving
 the model GUID.
 
+### Candle-driven dark fog
+
+For mobile-oriented atmosphere, extend the gameplay scene's existing ExponentialSquared fog
+rather than adding volumetric ray marching, transparent fog cards or a fullscreen depth pass.
+URP's installed `ShaderVariablesFunctions.hlsl` already blends surface color with fog; updating
+the existing uniforms adds no geometry, render pass or render texture. No package or shader changes.
+
+`RoomLighting` captures the scene fog color/density at fight start. Full candles retain the exact
+authored values (RGB 0.138/0.138/0.217, density 0.08). The weakest candle area's loss interpolates
+the color toward RGB 0.008/0.008/0.012 and density toward 0.12, using the same one-third-second
+time constant as ambient. At one of twelve candles the density approaches 0.11972; nearby surfaces
+remain readable while distance falls into darkness. This is distance haze, not moving smoke.
+
+Only already enabled Exp2 fog participates. Other modes and disabled scenes remain authored;
+denser starting fog is never reduced. Preparation, victory and component shutdown restore exact
+baseline values. Scene loading relinquishes ownership so gameplay values cannot overwrite menu
+RenderSettings. Losing keeps the darkened mood. No new graphics preference or network state.
+
+Target: mid-range phones at 30 FPS. Mobile acceptance requires A/B profiling on the same real
+device, resolution and warmed-up scene: hold camera, candle state and ambient/exposure fixed and
+compare only the authored versus darkened fog uniforms. Added GPU cost must be at most 0.5 ms
+and 5% of baseline.
+Desktop results do not certify that budget or overall mobile frame rate. Check nearby enemies,
+placement cells, muzzle flashes and HUD with manual/automatic exposure on the device as well.
+
+Research: [Unity fog density API](https://docs.unity.com/en-us/engine/6000.6/script-reference/unityengine/rendersettings/fogdensity)
+and [URP performance guidance](https://docs.unity.com/en-us/engine/6000.6/manual/render-pipelines/universal-render-pipeline/introduction/configure-for-better-performance).
+
+The initial 0.10 density cap was increased to 0.12 after visual feedback, preserving the full-candle baseline and rendering cost.
+The response subsequently changed from linear candle loss to `1 - fraction * fraction` for
+ambient, exposure and fog together: 25% candle loss gives 43.75% of the mood, and half loss gives
+75%. Full/max endpoints and the smoothing speed stay unchanged. Editor checks measured fog
+density 0.08 / 0.09748 / 0.10998 / 0.11999 at 100/75/50/0% candles, then verified preparation reset
+(`Logs/candle-curve-check.json`). Earlier density readings below describe the previous linear curve.
+The stronger version passed Editor compilation, automatic/manual exposure visual checks at full,
+half and one-of-twelve candles (`Logs/fog-strong-*.png`), and full-candle/reset checks across all
+three rooms (`Logs/fog-strong-reset.json`). Low-candle density reached approximately 0.1166.
+
+Initial verification (0.10 cap): Editor captures at 100%, 50% and one-of-twelve candles passed visual review with
+automatic/manual exposure and bloom disabled (`Logs/fog-*.png`). Low-candle density reached
+0.09833. Component-disable restoration, disabled-fog preservation and gameplay-to-menu scene
+reset passed (`Logs/fog-lifecycle.json`, `Logs/fog-scene-reset.txt`). The Linux build succeeded
+with zero errors (40.5 seconds), and native `-verifyGraphics` passed fog bounds and full-candle,
+preparation and victory invariants in all three rooms. Render-texture counts stayed 28/28,
+25/25 and 25/25; draw counts fluctuated by one around 2010/2011, with no added fog pass.
+See `Logs/graphics-verification.json` and `Logs/fog-graphics-player.log`. Windows/macOS/Linux
+compile and asset checks passed; the existing TMP editor harness warning remains.
+
 An Editor host check reached 0.773 ambient and -0.409 EV at one of twelve candles, verified the
 weakest-point rule in a multi-area room and resets at the next two preparations. Early probes let
 enemies consume test candles; the repeatable check freezes simulation while testing presentation.
+
+## Crosshair at low resolution
+
+The HUD's horizontal bars were only 1.25 reference units thick; the 1920x1080 Canvas scaler
+reduced them to approximately 0.833 screen pixels at 1280x720, allowing them to disappear between
+pixel rows. `AimScaler` now keeps the shorter axis at least two physical pixels on the existing
+Overlay Canvas, preserving the authored length, spread and hit marker. It runs in LateUpdate after
+PlayerShoot changes spread, avoiding script-order dependence. No HUD hierarchy or texture changes.
+Editor screenshots and geometry checks passed at 1280x720, 1280x800, 1920x1080 and 640x360
+(`Logs/crosshair-fixed.json`, `Logs/crosshair-fixed-*.png`); spread/hit-marker thickness and hiding
+were also checked. The original Game view size was restored after QA.
+The updated Linux build succeeded with zero errors (33.9 seconds); native `-verifyGraphics`,
+launched at 1280x720, passed with the earlier candle curve and all three room resets
+(`Logs/crosshair-graphics-player.log`). No runtime exceptions were logged.
 
 ## Display and persistence
 

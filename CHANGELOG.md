@@ -3,6 +3,8 @@
 ## Unreleased (`ai` branch)
 
 ### Graphics settings
+- Make candle darkness build earlier while preserving its maximum; keep all crosshair bars visible at low resolutions.
+- Darken the existing distance fog with fading candles; preserve full-candle lighting and reset it between rooms without adding rendering passes.
 - Preserve nighttime brightness at invasion start by avoiding repeated ambient-probe intensity multiplication.
 - Match the foam mat's green to the toy bricks through a persistent URP material remap.
 - Support lower world render resolutions in borderless while preserving native UI and resolution rollback.

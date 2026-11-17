@@ -10,12 +10,17 @@ public class RoomLighting : MonoBehaviour
     float _ambient = 1f;
     float _baseline;
     bool _ownsAmbient;
+    bool _ownsFog;
+    Color _fogColor;
+    float _fogDensity;
+    static readonly Color DarkFogColor = new Color(0.008f, 0.008f, 0.012f, 1f);
 
     void OnEnable() { SceneManager.sceneLoaded += OnSceneLoaded; }
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         // RenderSettings now belongs to the new scene; don't restore the previous scene's value.
         _ownsAmbient = false;
+        _ownsFog = false;
         _room = null;
         ExposureOffset = 0f;
         CandleFraction = 1f;
@@ -27,6 +32,12 @@ public class RoomLighting : MonoBehaviour
         {
             RenderSettings.ambientIntensity = _baseline;
         }
+        if (_ownsFog)
+        {
+            RenderSettings.fogColor = _fogColor;
+            RenderSettings.fogDensity = _fogDensity;
+        }
+        _ownsFog = false;
         _ownsAmbient = false;
         CandleFraction = 1f;
         _ambient = 1f;
@@ -49,6 +60,10 @@ public class RoomLighting : MonoBehaviour
         {
             _baseline = RenderSettings.ambientIntensity;
             _ownsAmbient = true;
+            // Only extend the scene's existing Exp2 fog; menus and other fog modes stay authored.
+            _ownsFog = RenderSettings.fog && RenderSettings.fogMode == FogMode.ExponentialSquared;
+            _fogColor = RenderSettings.fogColor;
+            _fogDensity = RenderSettings.fogDensity;
         }
         float fraction = 1f;
         foreach (var area in room.CaptureAreas)
@@ -56,13 +71,21 @@ public class RoomLighting : MonoBehaviour
                 fraction = Mathf.Min(fraction, area.LitCandleCount / (float)area.CandleCount);
         CandleFraction = fraction;
         float t = 1f - Mathf.Exp(-3f * Time.unscaledDeltaTime);
-        _ambient = Mathf.Lerp(_ambient, Mathf.Lerp(0.75f, 1f, fraction), t);
-        ExposureOffset = Mathf.Lerp(ExposureOffset, -0.45f * (1f - fraction), t);
+        // Ease out: half the candles lost gives 75% of the mood, with the same endpoints.
+        float candleDarkness = 1f - fraction * fraction;
+        _ambient = Mathf.Lerp(_ambient, Mathf.Lerp(1f, 0.75f, candleDarkness), t);
+        ExposureOffset = Mathf.Lerp(ExposureOffset, -0.45f * candleDarkness, t);
         // ambientProbe's getter includes environment intensity; writing it back applies
         // that intensity again. Leave the probe owned by Unity and scale intensity only.
         RenderSettings.ambientIntensity = QualitySettings.activeColorSpace == ColorSpace.Gamma
             ? Mathf.LinearToGammaSpace(Mathf.GammaToLinearSpace(_baseline) * _ambient)
             : _baseline * _ambient;
+        if (_ownsFog)
+        {
+            float darkness = Mathf.Clamp01((1f - _ambient) / 0.25f);
+            RenderSettings.fogColor = Color.Lerp(_fogColor, DarkFogColor, darkness);
+            RenderSettings.fogDensity = Mathf.Lerp(_fogDensity, Mathf.Max(_fogDensity, 0.12f), darkness);
+        }
     }
     void OnDisable()
     {

@@ -305,6 +305,10 @@ public class GraphicsVerification : MonoBehaviour
         float oldTime = ClockManager.time;
         var nightProbe = RenderSettings.ambientProbe;
         float nightIntensity = RenderSettings.ambientIntensity;
+        bool nightFog = RenderSettings.fog;
+        var nightFogMode = RenderSettings.fogMode;
+        Color nightFogColor = RenderSettings.fogColor;
+        float nightFogDensity = RenderSettings.fogDensity;
         manager.enabled = false;
         try
         {
@@ -315,6 +319,7 @@ public class GraphicsVerification : MonoBehaviour
             {
                 manager.CurrentMachState = pair[0];
                 yield return new WaitForSecondsRealtime(0.15f);
+                Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Preparation did not reset candle fog");
                 manager.CurrentMachState = pair[1];
                 manager.StopHordeAttack(); ClockManager.canCount = false;
                 yield return new WaitForSecondsRealtime(0.3f);
@@ -322,8 +327,34 @@ public class GraphicsVerification : MonoBehaviour
                 for (int channel = 0; channel < 3; channel++)
                     for (int coefficient = 0; coefficient < 9; coefficient++)
                         Require(Mathf.Abs(RenderSettings.ambientProbe[channel, coefficient] - nightProbe[channel, coefficient]) < 0.0001f, "Preparation/fight transition amplified the ambient probe");
+                Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Full candles changed the original fog");
+                var area = manager.CurrentRoom.CaptureAreas.Last();
+                float progress = area._progress;
+                using var fogDraws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
+                using var fogTextures = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Render Textures Count");
+                try
+                {
+                    yield return new WaitForSecondsRealtime(0.2f);
+                    long drawsBefore = fogDraws.Valid ? fogDraws.LastValue : -1;
+                    long texturesBefore = fogTextures.Valid ? fogTextures.LastValue : -1;
+                    area._progress = 50;
+                    yield return new WaitForSecondsRealtime(1.5f);
+                    if (nightFog && nightFogMode == FogMode.ExponentialSquared)
+                    {
+                        Require(RenderSettings.fogColor.maxColorComponent < nightFogColor.maxColorComponent, "Half candles did not darken fog");
+                        Require(RenderSettings.fogDensity >= nightFogDensity && RenderSettings.fogDensity <= Mathf.Max(nightFogDensity, 0.12f), "Candle fog density outside bounds");
+                    }
+                    Require(RenderSettings.fog == nightFog && RenderSettings.fogMode == nightFogMode, "Candle effect changed the fog mode or enabled flag");
+                    _report.checks.Add("Candle fog " + manager.CurrentRoom.name + ": draws " + drawsBefore + " -> " + (fogDraws.Valid ? fogDraws.LastValue : -1)
+                        + ", render textures " + texturesBefore + " -> " + (fogTextures.Valid ? fogTextures.LastValue : -1));
+                }
+                finally { area._progress = progress; }
             }
             _report.checks.Add("All three preparation/fight transitions preserve the original night ambient probe and intensity");
+            manager.CurrentMachState = GameManager.MatchState.Win;
+            yield return new WaitForSecondsRealtime(0.15f);
+            Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Victory did not restore original fog");
+            _report.checks.Add("Candle fog darkens in all three rooms, stays bounded and restores on preparation/victory without changing fog mode");
         }
         finally
         {

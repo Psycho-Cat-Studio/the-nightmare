@@ -58,11 +58,16 @@ inverse-square attenuation. Forward+ avoids per-object light selection popping i
 Enemy dissolve includes the clustered-light variant required by Forward+.
 
 During a fight the weakest capture area's fraction of lit candles controls a bounded mood effect:
-ambient intensity approaches 75% of its original linear-space value and an additional exposure offset
+the response is `1 - fraction * fraction`, so losing half the candles gives 75% of the mood.
+Ambient intensity approaches 75% of its original linear-space value and an additional exposure offset
 approaches -0.45 EV at zero candles. Smoothing takes about a second. The offset follows automatic or
 manual exposure, so eye adaptation cannot erase it. Room preparation, victory, a new scene or a new
 game restores the baseline immediately. Losing preserves the final darkened state. The existing rule
 is unchanged: losing any one capture area loses the match. HUD brightness is unaffected.
+The scene's existing Exp2 fog also follows candle loss: its authored blue-black color approaches
+RGB (0.008, 0.008, 0.012), and density rises from 0.08 to at most 0.12. It shares ambient smoothing
+and resets, preserves the full-candle appearance, and never enables fog in scenes where it is off.
+It uses the existing material fog calculation, without added render passes, textures or particles.
 Unity owns the ambient probe: writing its already intensity-scaled coefficients back amplified
 night lighting at invasion start. Only the intensity scalar changes now; full candles preserve
 the preparation brightness through all three fight transitions.
