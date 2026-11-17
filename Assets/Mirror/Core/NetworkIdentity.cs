@@ -195,6 +195,7 @@ namespace Mirror
 
         /// <summary>Client's network connection to the server. This is only valid for player objects on the client.</summary>
         // TODO change to NetworkConnectionToServer, but might cause some breaking
+        [field: NonSerialized] // Runtime connections must not be reconstructed during Unity hot reload.
         public NetworkConnection connectionToServer { get; internal set; }
 
         /// <summary>Server's network connection to the client. This is only valid for client-owned objects (including the Player object) on the server.</summary>
@@ -208,6 +209,7 @@ namespace Mirror
                 _connectionToClient?.AddOwnedObject(this);
             }
         }
+        [NonSerialized]
         NetworkConnectionToClient _connectionToClient;
 
         // get all NetworkBehaviour components

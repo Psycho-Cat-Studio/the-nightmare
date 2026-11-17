@@ -19,16 +19,11 @@ See [CHANGELOG.md](../CHANGELOG.md). In short:
 1. **Play-test pass on Unity 6**:
    - Two-player game over LAN and cross-platform.
    - Check every HUD text (TextMesh Pro shaders were updated) and lighting.
-2. **URP**:
-   - Create the URP asset and convert materials.
-   - Rewrite the custom shaders:
-     - dissolve (enemies and particles),
-     - QuickOutline,
-     - KY effects,
-     - starfield skybox.
-   - Replace Post Processing v1 with URP Volumes and re-bake lighting.
+2. **Rendering polish**:
+   - Tune the URP Volume/exposure against reference gameplay on target hardware.
+   - Verify cross-platform visuals and complete a full multiplayer match (see [URP.md](URP.md)).
 3. **Menus**:
-   - Give the settings window (IMGUI today) the game's paper look as a uGUI panel.
+   - Settings now use the existing uGUI artwork/font; complete cross-platform UI acceptance.
    - Add a "Play solo" button that hosts a private game.
 4. **Internet play without port forwarding**: a relay/NAT-punch transport. Use Steam (FizzySteamworks)
    if the game goes on Steam, otherwise Epic Online Services or Unity Relay. Join codes instead of IPs.

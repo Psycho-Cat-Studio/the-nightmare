@@ -2,7 +2,22 @@
 
 ## Unreleased (`ai` branch)
 
+### Graphics settings
+- Clarify rendering quality versus independent effects; keep the frame limit effective across all quality levels by disabling V-Sync.
+- Keep switchable URP bloom, vignette, exposure and advanced effects with shared Off/FXAA anti-aliasing.
+- Render first-person weapons through the native camera stack; fix additive muzzle flashes covering the world with black rectangles.
+- Replace the IMGUI settings window with the existing uGUI menu style, with keyboard navigation and pause-safe Escape handling.
+- Keep persistent windowed/borderless resolutions with a 15-second rollback; remove FSR, TAA and separate weapon settings.
+- Add an opt-in player graphics integration test (`-verifyGraphics`) that restores preferences after testing.
+
+### Rendering
+- Persist the URP pipeline, quality settings, converted materials and camera configuration.
+- Port enemy/particle dissolve, QuickOutline and volumetric explosions to URP; repair missing effect shaders.
+- Replace legacy post-processing with a global bloom/vignette/exposure Volume and use dynamic lighting with Skybox ambient and calibrated candle intensity.
+- Validate build materials and provide an editor host/fight smoke test under The Nightmare → URP.
+
 ### Multiplayer
+- Initialize player equipment before shooting components and handle inactive direction arrows when remote players spawn.
 - **Playable online again.** Unity's matchmaking service is gone, so games are now hosted directly:
   - Same network: hosted games show up in the server list.
   - Internet: join by IP or use a VPN such as Tailscale/ZeroTier.

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -51,14 +51,18 @@ public class PlayerShoot : NetworkBehaviour {
     private float currentRecoil;
     public float changeWeaponCooldown = 0;
     private Weapon activeWeapon = null;
+    private bool _initialized;
     private Animator _playerAnimator;
     
 
 
     // Start is called before the first frame update
-    void Start() {
+    IEnumerator Start() {
         _grenades = 0;
         source = GetComponent<AudioSource>();
+        // Network-spawned players do not guarantee that PlayerSetup.Start has equipped
+        // the weapon yet. Wait for that dependency instead of relying on script order.
+        while (Equipment == null || Equipment.Weapon1 == null) yield return null;
         activeWeapon = Equipment.Weapon1;
         if (Cam == null) enabled = false;
         else {
@@ -78,10 +82,12 @@ public class PlayerShoot : NetworkBehaviour {
         currentRecoil = activeWeapon.Recoil;
 
         if (!isLocalPlayer) activeWeapon.GetComponent<Animator>().enabled = false;
+        _initialized = true;
     }
 
 
     void Update() {
+        if (!_initialized || !isLocalPlayer || SettingsMenu.IsOpen) return;
         if (ButtonsControll.screensOver && !WinLoseScreens.winLoseActive && Equipment.getActiveWeapon() != null)
         { 
             currentRecoil = Equipment.getActiveWeapon().Recoil;
@@ -401,7 +407,7 @@ public class PlayerShoot : NetworkBehaviour {
         if (flatForward.sqrMagnitude < 0.0001f) flatForward = transform.forward;
         GameObject grenade = Instantiate(_grenadePrefab, playerPos + flatForward.normalized + Vector3.up / 2, playerRot);
         Rigidbody rb = grenade.GetComponent<Rigidbody>();
-        rb.velocity = force * (15 * aimDirection + 5 * Vector3.up);
+        rb.linearVelocity = force * (15 * aimDirection + 5 * Vector3.up);
         NetworkServer.Spawn(grenade);
     }
 }

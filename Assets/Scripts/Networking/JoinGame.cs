@@ -62,7 +62,7 @@ public class JoinGame : MonoBehaviour
       _addressField.onEndEdit = new InputField.EndEditEvent();
       _addressField.onEndEdit.AddListener(_ =>
       {
-         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) JoinByAddress();
+         if (!SettingsMenu.IsOpen && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))) JoinByAddress();
       });
       _addressField.contentType = InputField.ContentType.Standard;
       _addressField.characterLimit = 64;

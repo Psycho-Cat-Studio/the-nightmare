@@ -88,6 +88,7 @@ public class PlacementController : NetworkBehaviour
 
     private void Update()
     {
+        if (SettingsMenu.IsOpen) return;
         if(isLocalPlayer)
             for (int i = 0; i < 3; i++)
             {

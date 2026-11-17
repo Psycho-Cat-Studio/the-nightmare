@@ -1,35 +1,40 @@
-# URP (Universal Render Pipeline)
+# URP migration
 
-The `ai-urp` branch switches the game from the built-in render pipeline to URP 17.6.
+The desktop game uses Unity 6000.6.7f1 and URP 17.6.0 with the Universal Forward+ renderer.
+Pipeline assets and quality assignments are stored under `Assets/URPDefaultResources/`.
+Builds validate persisted assets; they never run a material/scene converter.
 
-## How the conversion works
+## Rendering
 
-`Assets/Scripts/Editor/UrpConversion.cs` runs Unity's **Render Pipeline Converter** in batch mode
-before every build. It does nothing once a URP asset is assigned. The converter:
-1. creates URP pipeline and renderer assets from the quality levels and assigns them (*RenderSettings*),
-2. upgrades Standard, Legacy and particle materials to URP shaders (*Material*, *ReadonlyMaterial*,
-   *AnimationClip*).
+- World Base + first-person WeaponCamera Overlay use one shared post-processing pass and native
+  resolution. The minimap retains its own depth/stencil target; the HUD renders after 3D effects.
+- All quality levels use Forward+ and per-pixel additional lights, avoiding candle-group light popping.
+- Standard, legacy particles, vegetation, glass and brick materials use URP shaders. Enemy/particle
+  dissolve, QuickOutline and volumetric explosions have URP passes. The six-sided starfield remains.
+- Effects have common toggles and Off/FXAA; no FSR, TAA, legacy presets or separate weapon controls.
+  Resolution changes have a 15-second confirmation/rollback. See [GRAPHICS_SETTINGS.md](GRAPHICS_SETTINGS.md).
+- Gameplay Skybox ambient is restored; capture candle intensity is calibrated for URP attenuation.
+  Switchable lights remain realtime. No unsupported Enlighten or baked candle light is introduced.
 
-CI does this on a fresh checkout, so the repository itself is not converted yet. To make it
-permanent:
-1. Open the project in the editor.
-2. Run **The Nightmare → Convert project to URP**.
-3. Commit the generated URP assets and the upgraded materials.
+## Legacy dependencies
 
-## What still needs manual work
+Gameplay prefabs/scenes no longer contain PPSv1 behaviours. The old Light/Ultra/Weapon profiles,
+duplicate NightmareVolume, isolated weapon renderer/compositor and one-off conversion scripts are
+removed after checking their references. `Assets/PostProcessing/` remains because imported office
+and CustomMotionTexture demo scenes still reference it. Its shaders are stripped from URP builds.
+Unverified demo shaders/assets are retained, as are used custom shaders and their metadata.
 
-These use custom shaders, which the converter skips. They render pink until rewritten (for example
-in Shader Graph):
+## Repeatable checks
 
-| Effect | Where |
-|---|---|
-| Enemy dissolve on death | `DissolveEnemyBody` materials |
-| Particle dissolve | `Particle Dissolve Shader by Moonflower Carnivore` |
-| Item outline | `QuickOutline` (built-in multi-pass outline) |
-| Magic effects | `KY_effects` |
-| Starfield skybox | skybox material |
+- **The Nightmare → URP → Validate build assets** checks build/resource materials and used custom shaders.
+- **The Nightmare → URP → Audit** writes `Logs/urp-audit.txt`.
+- **The Nightmare → URP → Configure switchable effects** maintains the shared profile/Forward+ assets.
+- **The Nightmare → UI → Rebuild settings prefab** regenerates the reusable uGUI shell.
+- In Play mode, **The Nightmare → URP → Smoke test host** exercises a host through the first fight.
+  Reports/screenshots are written to Logs; saved scenes are not modified by the smoke test.
+- `-verifyGraphics` runs the opt-in runtime integration checks, including GPU/image assertions.
+- `Tools/urp_shader_probe.csx` checks dissolve/outline; `Tools/urp_light_probe.csx` measures actual
+  overlapping-light contributions and camera-distance stability through MCP.
+- Compile checks, native builds and host/client gameplay remain separate checks; use [BUILDING.md](BUILDING.md).
 
-The game still has two other gaps under URP:
-- **Post-processing:** Post Processing Stack v1 does not run under URP. Recreate its look with a
-  global **Volume** (bloom, vignette, color grading).
-- **Lighting:** rebake it, since URP lights differently than the built-in pipeline.
+The approved repair plan and results are in [URP-FINALIZATION.md](URP-FINALIZATION.md).

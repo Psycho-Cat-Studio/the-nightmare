@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TMPro;
 using UnityEngine;
 using Mirror;
@@ -44,7 +44,7 @@ public class PlayerEquipment : NetworkBehaviour {
 
     private void Update() {
         // Interactions are input-driven; on other players' copies this used to fire on *our* key presses.
-        if (!isLocalPlayer) return;
+        if (!isLocalPlayer || SettingsMenu.IsOpen) return;
         RaycastHit weaponFinder;
         if (Physics.Raycast(_cam.transform.position, _cam.transform.forward, out weaponFinder, 0.75f,
             _mask)) {

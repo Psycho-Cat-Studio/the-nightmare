@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Mirror;
 using System.Collections.Generic;
 using System.Collections;
@@ -26,7 +26,8 @@ public class PlayerSetup : NetworkBehaviour {
             EquipWeaponNotLocal();
             DisableComponents();
             AssignRemoteLayer();
-            GetComponentInChildren<Arrow>().gameObject.SetActive(false);
+            Arrow arrow = GetComponentInChildren<Arrow>(true);
+            if (arrow != null) arrow.gameObject.SetActive(false);
         }
         else {
             GameSettings.ApplyFrameRate();
