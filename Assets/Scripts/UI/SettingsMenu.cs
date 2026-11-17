@@ -20,10 +20,11 @@ public class SettingsMenu : MonoBehaviour
     private bool _displayTrial;
     private float _displayDeadline;
     private int _oldWidth, _oldHeight;
+    private float _oldRenderScale;
     private FullScreenMode _oldMode;
     public Resolution[] Resolutions { get { return _resolutions; } }
     public int ResolutionIndex { get { return _resolutionIndex; } set { _resolutionIndex = value; } }
-    public bool Fullscreen { get { return _fullscreen; } set { _fullscreen = value; } }
+    public bool Fullscreen { get { return _fullscreen; } set { _fullscreen = value; RefreshResolutions(); } }
     public bool DisplayTrial { get { return _displayTrial; } }
     public int DisplaySeconds { get { return Mathf.Max(0, Mathf.CeilToInt(_displayDeadline - Time.realtimeSinceStartup)); } }
 
@@ -112,20 +113,38 @@ public class SettingsMenu : MonoBehaviour
         if (GameManager.LocalPlayer != null) PauseGame.menuActive = true;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-        var available = Screen.resolutions.ToList();
-        available.Add(new Resolution { width = Screen.width, height = Screen.height });
-        int maxWidth = Mathf.Max(Screen.currentResolution.width, Screen.width);
-        int maxHeight = Mathf.Max(Screen.currentResolution.height, Screen.height);
-        foreach (var size in new[] { new Vector2Int(640,360), new Vector2Int(854,480), new Vector2Int(960,540),
-            new Vector2Int(1024,576), new Vector2Int(1280,720), new Vector2Int(1280,800), new Vector2Int(1600,900), new Vector2Int(1920,1080) })
-            if (size.x <= maxWidth && size.y <= maxHeight) available.Add(new Resolution { width = size.x, height = size.y });
-        _resolutions = available.Where(r => r.width > 0 && r.height > 0)
-            .GroupBy(r => new { r.width, r.height }).Select(g => g.First()).OrderBy(r => r.width).ThenBy(r => r.height).ToArray();
-        _resolutionIndex = System.Array.FindIndex(_resolutions, r => r.width == Screen.width && r.height == Screen.height);
-        if (_resolutionIndex < 0) _resolutionIndex = 0;
         _fullscreen = Screen.fullScreen;
+        RefreshResolutions();
         _view.gameObject.SetActive(true);
         _view.ShowTab(0);
+    }
+    private void RefreshResolutions()
+    {
+        var available = _fullscreen ? new List<Resolution>() : Screen.resolutions.ToList();
+        if (_fullscreen)
+        {
+            int width = Screen.currentResolution.width, height = Screen.currentResolution.height;
+            foreach (float scale in new[] { 0.5f, 0.625f, 0.75f, 0.875f, 1f })
+            {
+                int w = Mathf.RoundToInt(width * scale), h = Mathf.RoundToInt(height * scale);
+                if (w >= 640 && h >= 360) available.Add(new Resolution { width = w, height = h });
+            }
+            available.Add(new Resolution { width = Mathf.RoundToInt(width * GraphicsPreferences.RenderScale), height = Mathf.RoundToInt(height * GraphicsPreferences.RenderScale) });
+        }
+        else
+        {
+            available.Add(new Resolution { width = Screen.width, height = Screen.height });
+            int maxWidth = Mathf.Max(Screen.currentResolution.width, Screen.width);
+            int maxHeight = Mathf.Max(Screen.currentResolution.height, Screen.height);
+            foreach (var size in new[] { new Vector2Int(640,360), new Vector2Int(854,480), new Vector2Int(960,540),
+                new Vector2Int(1024,576), new Vector2Int(1280,720), new Vector2Int(1280,800), new Vector2Int(1600,900), new Vector2Int(1920,1080) })
+                if (size.x <= maxWidth && size.y <= maxHeight) available.Add(new Resolution { width = size.x, height = size.y });
+        }
+        _resolutions = available.Where(r => r.width > 0 && r.height > 0)
+            .GroupBy(r => new { r.width, r.height }).Select(g => g.First()).OrderBy(r => r.width).ThenBy(r => r.height).ToArray();
+        int selectedWidth = _fullscreen ? Mathf.RoundToInt(Screen.currentResolution.width * GraphicsPreferences.RenderScale) : Screen.width;
+        _resolutionIndex = System.Array.FindIndex(_resolutions, r => r.width == selectedWidth);
+        if (_resolutionIndex < 0) _resolutionIndex = _resolutions.Length - 1;
     }
     public void CloseWindow()
     {
@@ -148,6 +167,7 @@ public class SettingsMenu : MonoBehaviour
     {
         if (!_displayTrial) return;
         Screen.SetResolution(_oldWidth, _oldHeight, _oldMode);
+        GraphicsPreferences.SetRenderScale(_oldRenderScale);
         _displayTrial = false;
     }
     private void ConfirmDisplay()
@@ -161,12 +181,16 @@ public class SettingsMenu : MonoBehaviour
         if (!_displayTrial)
         {
             _oldWidth = Screen.width; _oldHeight = Screen.height; _oldMode = Screen.fullScreenMode;
+            _oldRenderScale = GraphicsPreferences.RenderScale;
             // A quit/crash during an unconfirmed first trial must not become the next launch's resolution.
             if (!PlayerPrefs.HasKey("display.width")) GraphicsPreferences.SaveDisplay(_oldWidth, _oldHeight, _oldMode);
         }
         _displayTrial = true;
         _displayDeadline = Time.realtimeSinceStartup + 15;
-        Screen.SetResolution(width, height, fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
+        GraphicsPreferences.SetRenderScale(fullscreen ? Mathf.Min(width / (float)Screen.currentResolution.width, height / (float)Screen.currentResolution.height) : 1f);
+        Screen.SetResolution(fullscreen ? Screen.currentResolution.width : width,
+            fullscreen ? Screen.currentResolution.height : height,
+            fullscreen ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed);
     }
 
     public void ApplySelectedDisplay()

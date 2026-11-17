@@ -51,6 +51,7 @@ public class RuntimeGraphics : MonoBehaviour
         Instance = this;
         WorldProfile = Profile("Rendering/WorldEffects", "PostFX World");
         gameObject.AddComponent<AdaptiveExposure>();
+        gameObject.AddComponent<RoomLighting>();
         SceneManager.sceneLoaded += OnSceneLoaded;
         OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
     }
@@ -68,7 +69,8 @@ public class RuntimeGraphics : MonoBehaviour
             Apply();
             _nextScan = Time.unscaledTime + 0.5f;
         }
-        UrpAccess.Parameter(UrpAccess.Effect(WorldProfile, "ColorAdjustments"), "postExposure", GraphicsPreferences.AutoExposure && SystemInfo.supportsAsyncGPUReadback ? Exposure : GraphicsPreferences.ManualExposure);
+        float exposure = GraphicsPreferences.AutoExposure && SystemInfo.supportsAsyncGPUReadback ? Exposure : GraphicsPreferences.ManualExposure;
+        UrpAccess.Parameter(UrpAccess.Effect(WorldProfile, "ColorAdjustments"), "postExposure", exposure + RoomLighting.ExposureOffset);
     }
     RenderPipelineAsset Pipeline()
     {
@@ -107,7 +109,7 @@ public class RuntimeGraphics : MonoBehaviour
     {
         if (WorldProfile == null) return;
         var pipeline = Pipeline();
-        UrpAccess.Set(pipeline, "renderScale", 1f);
+        UrpAccess.Set(pipeline, "renderScale", GraphicsPreferences.RenderScale);
         UrpAccess.Set(pipeline, "upscalingFilter", "Linear");
         UrpAccess.Set(pipeline, "msaaSampleCount", 1);
         Active(WorldProfile, "Bloom", GraphicsPreferences.Bloom);

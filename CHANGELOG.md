@@ -3,6 +3,13 @@
 ## Unreleased (`ai` branch)
 
 ### Graphics settings
+- Preserve nighttime brightness at invasion start by avoiding repeated ambient-probe intensity multiplication.
+- Match the foam mat's green to the toy bricks through a persistent URP material remap.
+- Support lower world render resolutions in borderless while preserving native UI and resolution rollback.
+- Add a two-launch native-player check for graphics/display preference persistence.
+- Dim ambient lighting and exposure with the weakest candle area; restore the baseline for each new room.
+- Fix lobby join-column layout, server-list viewport and visible blinking input carets.
+- Remove PPSv1 and its unused OfficeProps demonstration scene/profile; retain gameplay models and URP effects.
 - Clarify rendering quality versus independent effects; keep the frame limit effective across all quality levels by disabling V-Sync.
 - Keep switchable URP bloom, vignette, exposure and advanced effects with shared Off/FXAA anti-aliasing.
 - Render first-person weapons through the native camera stack; fix additive muzzle flashes covering the world with black rectangles.
@@ -33,6 +40,9 @@
 - Crashes when players had different system languages (e.g. Polish and English) are fixed.
 
 ### Gameplay fixes
+- Limit placeable items to two grid tiles around the player; validate reach and free cells on the server, spending inventory only after confirmation.
+- Restore the immediate T placement preview, aim it through the FPS crosshair and highlight the candidate grid cell yellow.
+- Align grid visuals with physical floors so they do not cut through low traps; clear highlights on cancellation, placement and pause.
 - Weapons:
   - Fire-mode cycling no longer enables automatic fire on weapons that don't support it.
   - A weapon can't fire, reload or aim during the swap animation.

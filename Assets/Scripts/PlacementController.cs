@@ -6,12 +6,15 @@ using Mirror;
 public class PlacementController : NetworkBehaviour
 {
     public static float GridTileSize = 1f;
+    private const float PlacementRadiusInTiles = 2f;
     [SerializeField] private List<GameObject> _placeableObject;
     [SerializeField] private List<GameObject> _placeableObjectModels;
     //public GameObject PlaceableObject {get { return _placeableObject; } set { _placeableObject = value; }}
     private float _mouseWheelRotation;
     private float _x = 0, _y = 0, _reverseGrid, _camMinZoom, _camMaxZoom;
     private GameObject _currentObject;
+    private GridPoint _previewPoint;
+    private bool _placementPending;
     private string _currentTag;
     private Transform _buildingCameraHolder;
     private Camera _buildingCamera;
@@ -60,7 +63,7 @@ public class PlacementController : NetworkBehaviour
     public void InstantietePlaceable(int index)
     {
         _placeableIndex = index;
-        _currentObject = Instantiate(_placeableObjectModels[index]);
+        UpdatePlaceable();
           
     }
 
@@ -88,7 +91,13 @@ public class PlacementController : NetworkBehaviour
 
     private void Update()
     {
-        if (SettingsMenu.IsOpen) return;
+        if (!isLocalPlayer) return;
+        if (SettingsMenu.IsOpen || PauseGame.menuActive)
+        {
+            ClearPreviewPoint();
+            if (_currentObject != null) _currentObject.SetActive(false);
+            return;
+        }
         if(isLocalPlayer)
             for (int i = 0; i < 3; i++)
             {
@@ -98,9 +107,9 @@ public class PlacementController : NetworkBehaviour
         HandleKeys();
         if (_currentObject != null)
         {
+            RotateWheel();
             MoveToMouse();
             ReleaseOnClick();
-            RotateWheel();
         }
         
     }
@@ -170,24 +179,31 @@ public class PlacementController : NetworkBehaviour
 
     public void ErasePlaceable()
     {
-        
+            ClearPreviewPoint();
             if (_currentObject != null) Destroy(_currentObject);
+            _currentObject = null;
             _isPlacing = false;
-            _playerShoot.IsBuildingOnFly = false;
+            if (_playerShoot != null) _playerShoot.IsBuildingOnFly = false;
         
     }
 
 
     void UpdatePlaceable()
     {
+        ClearPreviewPoint();
         Destroy(_currentObject);
         _currentObject = Instantiate(_placeableObjectModels[_placeableIndex]);
+        // A preview must not catch its own placement ray or participate in physics.
+        foreach (var collider in _currentObject.GetComponentsInChildren<Collider>()) collider.enabled = false;
+        foreach (var body in _currentObject.GetComponentsInChildren<Rigidbody>()) body.isKinematic = true;
+        MoveToMouse();
     }
 
     void ReleaseOnClick()
     {
-        if (Input.GetMouseButton(0))
+        if (Input.GetMouseButtonDown(0) && _currentObject.activeSelf && !_placementPending)
         {
+            if (_previewPoint == null || !IsWithinPlacementRange(_currentObject.transform.position)) { PlaySound(nono); return; }
             string posAndTag = _currentObject.transform.position.x.ToString() + "_" + _currentObject.transform.position.z.ToString() + "_" + _currentTag;
             if(placeableCount[_placeableIndex] > 0)
             {
@@ -195,18 +211,17 @@ public class PlacementController : NetworkBehaviour
                     && GameManager.Instance.BuildingPoints[posAndTag].Buildable
                     )
                 {
-                    PlaySound(bop);
                     if (GameManager.CurrentState == GameManager.GameState.Fighting)
                         GameManager.TurnOnGridRenders(false);
 
+                    Vector3 position = _currentObject.transform.position;
+                    Quaternion rotation = _currentObject.transform.rotation;
+                    ClearPreviewPoint();
                     Destroy(_currentObject);
-                    CmdPlaceEntity(_currentObject.transform.position, _currentObject.transform.rotation, _currentTag, _placeableIndex);
-                    GameManager.Instance.BuildingPoints[posAndTag].Buildable = false;
+                    _currentObject = null;
+                    _placementPending = true;
+                    CmdPlaceEntity(position, rotation, _currentTag, _placeableIndex);
                     _playerShoot.WasBuilt = true;
-                    placeableCount[_placeableIndex]--;
-                    if (!hasNoPlaceable() && placeableCount[_placeableIndex] == 0) {
-                        _placeableIndex = returnFirstAvailableBiggerIndex();
-                    }
                 }
                 else
                     PlaySound(nono);
@@ -220,6 +235,14 @@ public class PlacementController : NetworkBehaviour
     void CmdPlaceEntity(Vector3 pos, Quaternion rot, string tag, int placeableIndex)
     {
         string posAndTag = pos.x.ToString() + "_" + pos.z.ToString() + "_" + tag;
+        GridPoint point;
+        if (placeableIndex < 0 || placeableIndex >= _placeableObject.Count
+            || !IsWithinPlacementRange(pos)
+            || !GameManager.Instance.BuildingPoints.TryGetValue(posAndTag, out point) || !point.Buildable)
+        {
+            TargetPlacementResult(connectionToClient, placeableIndex, false);
+            return;
+        }
         GameObject placeableObject = Instantiate(_placeableObject[placeableIndex], pos, rot);
         switch (placeableIndex)
         {
@@ -239,24 +262,45 @@ public class PlacementController : NetworkBehaviour
         }
         //NetworkServer.SpawnWithClientAuthority(placeableObject, connectionToClient);
         NetworkServer.Spawn(placeableObject);
+        point.Buildable = false;
         RpcPlaceEntity(posAndTag);
+        TargetPlacementResult(connectionToClient, placeableIndex, true);
     }
 
     [ClientRpc]
     void RpcPlaceEntity(string posAndTag)
     {
-        if (!isLocalPlayer)
-        {
-            GameManager.Instance.BuildingPoints[posAndTag].Buildable = false;
-        }
+        GameManager.Instance.BuildingPoints[posAndTag].Buildable = false;
     }
-    
-    
+
+    [TargetRpc]
+    void TargetPlacementResult(NetworkConnectionToClient target, int index, bool accepted)
+    {
+        _placementPending = false;
+        PlaySound(accepted ? bop : nono);
+        if (!accepted) return;
+        placeableCount[index]--;
+        if (_placeableIndex == index && !hasNoPlaceable() && placeableCount[index] == 0)
+            _placeableIndex = returnFirstAvailableBiggerIndex();
+    }
+
+    bool IsWithinPlacementRange(Vector3 position)
+    {
+        Vector3 delta = position - transform.position;
+        float radius = PlacementRadiusInTiles * GridTileSize;
+        return delta.x * delta.x + delta.z * delta.z <= radius * radius;
+    }
+
     void MoveToMouse()
     {
         if (_currentObject != null)
         {
-            Ray ray = _currentCamera.ScreenPointToRay(Input.mousePosition);
+            _currentCamera = GameManager.CurrentState == GameManager.GameState.Building ? _buildingCamera : _actionCamera;
+            // Locked-pointer coordinates can be outside a scaled Game view on Linux.
+            // FPS placement follows the crosshair; the overhead view uses the pointer.
+            Ray ray = GameManager.CurrentState == GameManager.GameState.Fighting
+                ? _currentCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0))
+                : _currentCamera.ScreenPointToRay(Input.mousePosition);
 
             RaycastHit hitInfo;
             if (Physics.Raycast(ray, out hitInfo, 100f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
@@ -264,10 +308,52 @@ public class PlacementController : NetworkBehaviour
                 _x = Mathf.Round(hitInfo.point.x * _reverseGrid) / _reverseGrid;
                 _y = Mathf.Round(hitInfo.point.z * _reverseGrid) / _reverseGrid;
                 _currentObject.transform.position = new Vector3(_x, hitInfo.transform.position.y, _y);
+                if (!IsWithinPlacementRange(_currentObject.transform.position))
+                {
+                    ClearPreviewPoint();
+                    _currentObject.SetActive(false);
+                    return;
+                }
                 _currentTag = hitInfo.collider.tag;
+                string key = _x.ToString() + "_" + _y.ToString() + "_" + _currentTag;
+                GridPoint point;
+                if (GameManager.Instance.BuildingPoints.TryGetValue(key, out point))
+                {
+                    if (_previewPoint != point)
+                    {
+                        ClearPreviewPoint();
+                        _previewPoint = point;
+                        point.SetPlacementPreview(true);
+                    }
+                    _currentObject.SetActive(true);
+                    return;
+                }
+                // Keep the original model preview over a floor even where no grid cell
+                // exists (e.g. the capture zone). It remains impossible to place there.
+                foreach (var room in GameManager.Instance.Rooms)
+                    if (room.CompareTag(_currentTag))
+                    {
+                        ClearPreviewPoint();
+                        _currentObject.SetActive(true);
+                        return;
+                    }
                 //_currentObject.transform.rotation = Quaternion.FromToRotation(Vector3.up, hitInfo.normal);
             }
+            ClearPreviewPoint();
+            _currentObject.SetActive(false);
         }
+    }
+
+    void ClearPreviewPoint()
+    {
+        if (_previewPoint != null) _previewPoint.SetPlacementPreview(false);
+        _previewPoint = null;
+    }
+
+    void OnDisable()
+    {
+        ErasePlaceable();
+        if (_playerShoot != null && isLocalPlayer && GameManager.Instance != null) GameManager.TurnOnGridRenders(false);
     }
 
     void HandleKeys()
@@ -281,14 +367,17 @@ public class PlacementController : NetworkBehaviour
                     if (!_playerShoot.IsBuildingOnFly)
                     {
                         GameManager.TurnOnGridRenders(true);
-                        if (!hasNoPlaceable()) _currentObject = Instantiate(_placeableObjectModels[_placeableIndex]);
+                        if (!hasNoPlaceable())
+                        {
+                            if (placeableCount[_placeableIndex] <= 0) _placeableIndex = returnFirstAvailableBiggerIndex();
+                            UpdatePlaceable();
+                        }
                         _playerShoot.IsBuildingOnFly = true;
                     }
                     else
                     {
                         GameManager.TurnOnGridRenders(false);
-                        Destroy(_currentObject);
-                        _playerShoot.IsBuildingOnFly = false;
+                        ErasePlaceable();
                     }
 
                 }
@@ -330,13 +419,13 @@ public class PlacementController : NetworkBehaviour
                     {
                         if (_currentObject == null)
                         {
-                            _currentObject = Instantiate(_placeableObject[_placeableIndex]);
+                            if (placeableCount[_placeableIndex] <= 0) _placeableIndex = returnFirstAvailableBiggerIndex();
+                            UpdatePlaceable();
                             _isPlacing = true;
                         }
                         else
                         {
-                            Destroy(_currentObject);
-                            _isPlacing = false;
+                            ErasePlaceable();
                         }
                     }
                 }

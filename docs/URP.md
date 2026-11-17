@@ -6,8 +6,8 @@ Builds validate persisted assets; they never run a material/scene converter.
 
 ## Rendering
 
-- World Base + first-person WeaponCamera Overlay use one shared post-processing pass and native
-  resolution. The minimap retains its own depth/stencil target; the HUD renders after 3D effects.
+- World Base + first-person WeaponCamera Overlay use one shared post-processing pass. Borderless
+  render resolution is independent of desktop/UI resolution. The minimap retains its depth target.
 - All quality levels use Forward+ and per-pixel additional lights, avoiding candle-group light popping.
 - Standard, legacy particles, vegetation, glass and brick materials use URP shaders. Enemy/particle
   dissolve, QuickOutline and volumetric explosions have URP passes. The six-sided starfield remains.
@@ -20,8 +20,9 @@ Builds validate persisted assets; they never run a material/scene converter.
 
 Gameplay prefabs/scenes no longer contain PPSv1 behaviours. The old Light/Ultra/Weapon profiles,
 duplicate NightmareVolume, isolated weapon renderer/compositor and one-off conversion scripts are
-removed after checking their references. `Assets/PostProcessing/` remains because imported office
-and CustomMotionTexture demo scenes still reference it. Its shaders are stripped from URP builds.
+removed after checking their references. The old `Assets/PostProcessing/` stack, its examples,
+the OfficeProps demonstration scene/profile and the obsolete shader stripper are now removed.
+OfficeProps models, materials and textures used by gameplay remain. URP's own post-processing stays.
 Unverified demo shaders/assets are retained, as are used custom shaders and their metadata.
 
 ## Repeatable checks
@@ -38,3 +39,4 @@ Unverified demo shaders/assets are retained, as are used custom shaders and thei
 - Compile checks, native builds and host/client gameplay remain separate checks; use [BUILDING.md](BUILDING.md).
 
 The approved repair plan and results are in [URP-FINALIZATION.md](URP-FINALIZATION.md).
+Subsequent display, candle mood, lobby and dependency changes are in [URP-FOLLOWUP.md](URP-FOLLOWUP.md).

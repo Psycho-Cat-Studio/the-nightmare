@@ -3,6 +3,13 @@ using UnityEngine;
 // Preferences are per player. Runtime rendering always works on cloned assets.
 public static class GraphicsPreferences
 {
+    // Runtime display trial; written to preferences only after Keep.
+    public static float RenderScale { get; private set; } = 1f;
+    public static void SetRenderScale(float scale)
+    {
+        RenderScale = Mathf.Clamp(scale, 0.1f, 1f);
+        Changed();
+    }
     public static int Revision { get; private set; }
     static bool Flag(string key, bool fallback) { return PlayerPrefs.GetInt("graphics." + key, fallback ? 1 : 0) != 0; }
     static void Flag(string key, bool value, bool fallback)
@@ -38,6 +45,8 @@ public static class GraphicsPreferences
         PlayerPrefs.SetInt("display.width", width);
         PlayerPrefs.SetInt("display.height", height);
         PlayerPrefs.SetInt("display.mode", (int)mode);
+        PlayerPrefs.SetInt("display.renderWidth", Mathf.RoundToInt(width * RenderScale));
+        PlayerPrefs.SetInt("display.renderHeight", Mathf.RoundToInt(height * RenderScale));
         PlayerPrefs.Save();
     }
     public static void ApplySavedDisplay()
@@ -52,6 +61,14 @@ public static class GraphicsPreferences
         height = Mathf.Max(360, Mathf.RoundToInt(height * scale));
         var mode = (FullScreenMode)PlayerPrefs.GetInt("display.mode", (int)FullScreenMode.FullScreenWindow);
         if (mode != FullScreenMode.Windowed) mode = FullScreenMode.FullScreenWindow;
+        if (mode == FullScreenMode.FullScreenWindow)
+        {
+            width = Screen.currentResolution.width;
+            height = Screen.currentResolution.height;
+            SetRenderScale(Mathf.Min(PlayerPrefs.GetInt("display.renderWidth", width) / (float)width,
+                PlayerPrefs.GetInt("display.renderHeight", height) / (float)height));
+        }
+        else SetRenderScale(1f);
         Screen.SetResolution(width, height, mode);
     }
 }

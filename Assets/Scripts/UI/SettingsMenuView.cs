@@ -95,9 +95,9 @@ public class SettingsMenuView : MonoBehaviour
         Choice("Frame limit", Array.ConvertAll(fps, n => n == 0 ? "Unlimited" : n + " FPS"),
             Mathf.Max(0, Array.IndexOf(fps, GameSettings.MaxFps)), i => GameSettings.MaxFps = fps[i]);
         Choice("Rendering quality", QualitySettings.names, GameSettings.QualityLevel, i => GameSettings.QualityLevel = i);
-        Choice("Resolution", Array.ConvertAll(_owner.Resolutions, r => r.width + " x " + r.height), _owner.ResolutionIndex, i => _owner.ResolutionIndex = i);
-        ToggleRow("Borderless fullscreen", _owner.Fullscreen, v => _owner.Fullscreen = v);
-        Note("Fullscreen uses the desktop display mode. Use windowed mode to resize the game window.");
+        Choice(_owner.Fullscreen ? "Render resolution" : "Window resolution", Array.ConvertAll(_owner.Resolutions, r => r.width + " x " + r.height), _owner.ResolutionIndex, i => _owner.ResolutionIndex = i);
+        ToggleRow("Borderless fullscreen", _owner.Fullscreen, v => { _owner.Fullscreen = v; ShowTab(_tab); });
+        Note("Borderless keeps the interface at desktop resolution; windowed mode resizes the game window.");
         var row = Row("");
         MakeButton(row, "Apply resolution", 300).onClick.AddListener(_owner.ApplySelectedDisplay);
     }

@@ -71,6 +71,10 @@ public class JoinGame : MonoBehaviour
       // Short like the "Room name..." placeholder: a longer text wraps and gets clipped away entirely.
       if (placeholder != null) placeholder.text = "Host IP...";
       _addressField.transform.SetSiblingIndex(index);
+      var addressSize = _addressField.GetComponent<LayoutElement>() ?? _addressField.gameObject.AddComponent<LayoutElement>();
+      addressSize.minHeight = addressSize.preferredHeight = 90f;
+      addressSize.preferredWidth = 360f;
+      addressSize.flexibleHeight = 0;
 
       Button connect = Instantiate(_refreshButton, column, false);
       connect.name = "ConnectButton";
@@ -78,10 +82,11 @@ public class JoinGame : MonoBehaviour
       connect.onClick.AddListener(JoinByAddress);
       if (_connectSprite != null) connect.image.sprite = _connectSprite;
       connect.transform.SetSiblingIndex(index + 1);
-
-      // Two extra rows no longer fit with the original 50 px spacing (Refresh hung off the paper).
-      VerticalLayoutGroup layout = column.GetComponent<VerticalLayoutGroup>();
-      if (layout != null) layout.spacing = Mathf.Min(layout.spacing, 20f);
+      var connectSize = connect.GetComponent<LayoutElement>() ?? connect.gameObject.AddComponent<LayoutElement>();
+      connectSize.minHeight = connectSize.preferredHeight = 96f;
+      connectSize.preferredWidth = 300f;
+      connectSize.flexibleHeight = 0;
+      _addressField.ForceLabelUpdate();
    }
 
    public void RefreshRoomList()

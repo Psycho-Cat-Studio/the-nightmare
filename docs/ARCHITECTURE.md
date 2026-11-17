@@ -95,7 +95,6 @@ All of this runs on the server. Clients get the state through `GameManager`'s Sy
 |---|---|
 | `Mirror` | Networking, MIT. Update it by replacing the folder from a Mirror release. |
 | `TextMesh Pro` | Essential resources from uGUI 2.6. |
-| `PostProcessing` | Post Processing Stack v1, for the built-in render pipeline. |
 | `QuickOutline` | Outline effect. |
 | `KY_effects`, `Particle Dissolve Shader…`, `Standard Assets` (trimmed) | Effects and particles. |
 

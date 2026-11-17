@@ -18,6 +18,7 @@ public class GraphicsVerification : MonoBehaviour
     int _quality, _width, _height;
     FullScreenMode _mode;
     bool _pause;
+    float _renderScale;
     GameObject _probe;
     Material _probeMaterial;
     readonly List<Behaviour> _disabled = new List<Behaviour>();
@@ -34,10 +35,11 @@ public class GraphicsVerification : MonoBehaviour
     {
         _quality = QualitySettings.GetQualityLevel(); _width = Screen.width; _height = Screen.height;
         _mode = Screen.fullScreenMode; _pause = PauseGame.menuActive;
+        _renderScale = GraphicsPreferences.RenderScale;
         string[] ints = { "bloom", "vignette", "autoExposure", "depthOfField", "motionBlur", "colorGrading", "chromatic", "dithering", "ambientOcclusion", "aa" };
         foreach (string key in ints) SaveKey("graphics." + key, false);
         foreach (string key in new[] { "exposure" }) SaveKey("graphics." + key, true);
-        foreach (string key in new[] { "display.width", "display.height", "display.mode", "settings.quality" }) SaveKey(key, false);
+        foreach (string key in new[] { "display.width", "display.height", "display.mode", "display.renderWidth", "display.renderHeight", "settings.quality" }) SaveKey(key, false);
     }
     void SaveKey(string key, bool floating)
     {
@@ -58,10 +60,12 @@ public class GraphicsVerification : MonoBehaviour
             else PlayerPrefs.SetInt(p.key, p.integer);
         }
         PlayerPrefs.Save(); GraphicsPreferences.Changed();
+        GraphicsPreferences.SetRenderScale(_renderScale);
     }
     IEnumerator Start()
     {
         Capture();
+        GraphicsPreferences.SetRenderScale(1f);
         var test = Run();
         bool running = true;
         while (running)
@@ -260,6 +264,7 @@ public class GraphicsVerification : MonoBehaviour
         owner.Apply();
         yield return null;
         VerifyBloomPixels(owner);
+        VerifyPlaceableRendering();
         var menu = UnityEngine.Object.FindObjectsByType<SettingsMenu>().First();
         PauseGame.menuActive = true;
         MenuCall(menu, "OpenWindow");
@@ -293,6 +298,97 @@ public class GraphicsVerification : MonoBehaviour
         MenuCall(menu, "CloseWindow");
         Require(PauseGame.menuActive, "Closing Settings resumed gameplay");
         _report.checks.Add("Closing Settings leaves pause active");
+        var manager = GameManager.Instance;
+        var oldPhase = manager.CurrentMachState;
+        var oldRoom = manager.CurrentRoom;
+        bool oldEnabled = manager.enabled, oldCounting = ClockManager.canCount;
+        float oldTime = ClockManager.time;
+        var nightProbe = RenderSettings.ambientProbe;
+        float nightIntensity = RenderSettings.ambientIntensity;
+        manager.enabled = false;
+        try
+        {
+            foreach (var pair in new[] {
+                new[] { GameManager.MatchState.Room1Prepare, GameManager.MatchState.Room1Fight },
+                new[] { GameManager.MatchState.Room2Prepare, GameManager.MatchState.Room2Fight },
+                new[] { GameManager.MatchState.Room3Prepare, GameManager.MatchState.Room3Fight } })
+            {
+                manager.CurrentMachState = pair[0];
+                yield return new WaitForSecondsRealtime(0.15f);
+                manager.CurrentMachState = pair[1];
+                manager.StopHordeAttack(); ClockManager.canCount = false;
+                yield return new WaitForSecondsRealtime(0.3f);
+                Require(Mathf.Abs(RenderSettings.ambientIntensity - nightIntensity) < 0.001f && Mathf.Abs(RoomLighting.ExposureOffset) < 0.001f, "Full candles changed night brightness");
+                for (int channel = 0; channel < 3; channel++)
+                    for (int coefficient = 0; coefficient < 9; coefficient++)
+                        Require(Mathf.Abs(RenderSettings.ambientProbe[channel, coefficient] - nightProbe[channel, coefficient]) < 0.0001f, "Preparation/fight transition amplified the ambient probe");
+            }
+            _report.checks.Add("All three preparation/fight transitions preserve the original night ambient probe and intensity");
+        }
+        finally
+        {
+            manager.CurrentMachState = oldPhase;
+            typeof(GameManager).GetField("_currentRoom", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(manager, oldRoom);
+            manager.enabled = oldEnabled;
+            ClockManager.time = oldTime; ClockManager.canCount = oldCounting;
+        }
         _report.checks.Add("PASS");
+    }
+
+    void VerifyPlaceableRendering()
+    {
+        var placement = GameManager.LocalPlayer.GetComponent<PlacementController>();
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var models = (List<GameObject>)typeof(PlacementController).GetField("_placeableObjectModels", flags).GetValue(placement);
+        var prefabs = (List<GameObject>)typeof(PlacementController).GetField("_placeableObject", flags).GetValue(placement);
+        var cameraObject = new GameObject("Placeable render probe", typeof(Camera));
+        var lightObject = new GameObject("Placeable probe light", typeof(Light));
+        var target = new RenderTexture(384, 288, 24);
+        var pixels = new Texture2D(384, 288, TextureFormat.RGB24, false);
+        var camera = cameraObject.GetComponent<Camera>();
+        camera.enabled = false; camera.cullingMask = 1 << 30;
+        camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.gray;
+        camera.nearClipPlane = 0.01f; camera.farClipPlane = 100f; camera.targetTexture = target;
+        var light = lightObject.GetComponent<Light>();
+        light.type = LightType.Directional; light.intensity = 1f; light.cullingMask = 1 << 30;
+        light.transform.rotation = Quaternion.Euler(45, 30, 0);
+        var previous = RenderTexture.active;
+        try
+        {
+            foreach (var prefab in models.Concat(prefabs))
+            {
+                var clone = Instantiate(prefab, new Vector3(1000, 1000, 1000), Quaternion.identity);
+                try
+                {
+                    foreach (var behaviour in clone.GetComponentsInChildren<MonoBehaviour>()) behaviour.enabled = false;
+                    foreach (var sprite in clone.GetComponentsInChildren<SpriteRenderer>()) sprite.enabled = false;
+                    foreach (var transform in clone.GetComponentsInChildren<Transform>()) transform.gameObject.layer = 30;
+                    var renderers = clone.GetComponentsInChildren<Renderer>().Where(r => r.enabled).ToArray();
+                    Require(renderers.Length > 0, prefab.name + ": no visible model");
+                    Require(renderers.SelectMany(r => r.sharedMaterials).All(m => m != null && m.shader != null && m.shader.isSupported && m.shader.name != "Standard" && m.shader.name != "Hidden/InternalErrorShader"), prefab.name + ": unsupported material");
+                    var bounds = renderers[0].bounds;
+                    foreach (var renderer in renderers) bounds.Encapsulate(renderer.bounds);
+                    for (int view = 0; view < 2; view++)
+                    {
+                        float direction = view == 0 ? 1 : -1;
+                        camera.transform.position = bounds.center + new Vector3(direction, 1, -direction).normalized * bounds.size.magnitude * 1.1f;
+                        camera.transform.LookAt(bounds.center);
+                        camera.Render(); RenderTexture.active = target;
+                        pixels.ReadPixels(new Rect(0, 0, 384, 288), 0, 0); pixels.Apply();
+                        var colors = pixels.GetPixels(); Color background = colors[0];
+                        int visible = colors.Count(c => Mathf.Abs(c.r - background.r) + Mathf.Abs(c.g - background.g) + Mathf.Abs(c.b - background.b) > 0.1f);
+                        Require(visible > 100, prefab.name + ": model disappeared in view " + view);
+                        File.WriteAllBytes("Logs/placeable-" + prefab.name + "-" + view + ".png", pixels.EncodeToPNG());
+                    }
+                }
+                finally { DestroyImmediate(clone); }
+            }
+            _report.checks.Add("All three previews and placed models render pixels from both directions with supported materials");
+        }
+        finally
+        {
+            RenderTexture.active = previous; target.Release();
+            Destroy(target); Destroy(pixels); Destroy(cameraObject); Destroy(lightObject);
+        }
     }
 }
