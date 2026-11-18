@@ -174,6 +174,14 @@ public class GameManager : NetworkBehaviour
             }
         }
     }
+    // This policy is enforced by PlayerManager on the server for every damage source.
+    public bool CanDamagePlayers => _currentMatchState == MatchState.Room1Prepare
+        || _currentMatchState == MatchState.Room1Fight
+        || _currentMatchState == MatchState.Room2Prepare
+        || _currentMatchState == MatchState.Room2Fight
+        || _currentMatchState == MatchState.Room3Prepare
+        || _currentMatchState == MatchState.Room3Fight;
+
     public enum GameState { Building, Fighting }
     //private static GameState _currentState = GameState.Building;
     private static GameState _currentState = GameState.Fighting;
@@ -454,6 +462,8 @@ public class GameManager : NetworkBehaviour
             Transform spawnPoint = PickSpawnPoint();
             if (spawnPoint == null) continue;
             GameObject enemy = Instantiate(_enemyPrefab, spawnPoint.position, spawnPoint.rotation);
+            var target = spawnPoint.GetComponent<EnemySpawnTarget>();
+            if (target != null) enemy.GetComponent<EnemyControllerServer>().SetInitialCaptureArea(target.InitialArea);
             NetworkServer.Spawn(enemy);
             _enemiesCounter++;
             _spawnedEnemiesCounter++;

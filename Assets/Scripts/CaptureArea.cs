@@ -50,6 +50,9 @@ public class CaptureArea : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        // Client physics can overlap a newly spawned enemy before its server controller's
+        // Start disables that component. Only the server may stop AI or capture a candle area.
+        if (!isServer) return;
         if (other.CompareTag("EnemyLegs"))
         {
             EnemyControllerServer enemy = other.GetComponentInParent<EnemyControllerServer>();
@@ -71,6 +74,7 @@ public class CaptureArea : NetworkBehaviour
 
     private void OnTriggerExit(Collider other)
     {
+        if (!isServer) return;
         if (other.CompareTag("EnemyLegs"))
         {
             EnemyControllerServer enemy = other.GetComponentInParent<EnemyControllerServer>();

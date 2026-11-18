@@ -84,10 +84,10 @@ All of this runs on the server. Clients get the state through `GameManager`'s Sy
 |---|---|
 | `Player/FPS` | `PlayerSetup` (local vs remote setup, HUD wiring), `PlayerController` + `PlayerMotor` (input, movement), `PlayerShoot`, `PlayerEquipment`, `PlayerManager` (health, revive). |
 | `Weapons` | `Weapon` (stats, ammo), chests and pickups, `Grenade`. |
-| `Enemy` | `EnemyControllerServer` (NavMesh AI, server only), `EnemyControllerClient` (visuals), dissolve on death. |
+| `Enemy` | `EnemyControllerServer` (NavMesh AI, server only), `EnemyControllerClient` (visuals), dissolve on death, `EnemyFeedback` (confirmed hit/attack presentation; [details](ENEMY-FEEDBACK.md), [combat follow-up](COMBAT-FOLLOWUP.md), [feedback tuning](FEEDBACK-TUNING.md)). |
 | `Traps` | Teddy bear (defends an area), snares (stop enemies), explosive barrels, `ExplosionDamage`. |
 | `Building` | Placement grid for traps (`PlacementController` in the root folder uses it). |
-| `UI` | HUD (`BulletsHUD`, `HealthBar`, `ClipsManager`, `ClockManager`), menus, `SettingsMenu` + `SettingsMenuView` + `GameSettings` (uGUI settings prefab, PlayerPrefs), `Nameplates`, `FullscreenUIFitter` (keeps full-screen art covering non-16:9 screens). |
+| `UI` | HUD (`BulletsHUD`, `HealthBar`, `ClipsManager`, `ClockManager`), local red [damage overlay](PLAYER-DAMAGE-FEEDBACK.md), menus, `SettingsMenu` + `SettingsMenuView` + `GameSettings` (uGUI settings prefab, PlayerPrefs), `Nameplates`, `FullscreenUIFitter` (keeps full-screen art covering non-16:9 screens). |
 | `Networking` | Network manager, LAN discovery, lobby UI (`HostGame`, `JoinGame`, `ServerListItem`). |
 | `Graphics` | Runtime pipeline/profile clones, shared post-processing, eye adaptation and opt-in graphics integration test. See [GRAPHICS_SETTINGS.md](GRAPHICS_SETTINGS.md). |
 | `Editor` | `NightmareBuild` (CI and menu builds), `NetworkIdBaker` (Mirror asset ids before builds). |
@@ -114,3 +114,5 @@ See [ROADMAP.md](ROADMAP.md). The main ones:
 - Rendering uses URP; configuration, deliberate visual differences and checks are in [URP.md](URP.md).
 - Settings use the shared uGUI prefab; visual/runtime checks are recorded in [URP-FINALIZATION.md](URP-FINALIZATION.md).
 - Internet play needs port forwarding or a VPN.
+
+Friendly fire, lobby immunity and pooled blast-radius visuals: [FRIENDLY-FIRE-EXPLOSIONS.md](FRIENDLY-FIRE-EXPLOSIONS.md).

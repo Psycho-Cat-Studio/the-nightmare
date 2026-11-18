@@ -11,23 +11,28 @@ public class Grenade : NetworkBehaviour
     private MeshRenderer _renderer;
     private CapsuleCollider _collider;
 
-    void Start()
+    void Awake()
     {
         _collider = GetComponent<CapsuleCollider>();
         _renderer = transform.GetChild(0).GetChild(0).GetComponent<MeshRenderer>();
+    }
+
+    void Start()
+    {
+        if (!isServer) return;
+        transform.GetChild(1).GetComponent<GrenadeCollider>().server = true;
         StartCoroutine(Explode());
-        if (isServer) transform.GetChild(1).GetComponent<GrenadeCollider>().server = true;
     }
 
     private IEnumerator Explode()
     {
         yield return new WaitForSeconds(_secsToExplosion);
-        _collider.enabled = false;
-        _renderer.enabled = false;
+        HideForExplosion();
         transform.GetChild(1).gameObject.SetActive(true);
         if (isServer)
         {
-            RpcExlode();
+            var sphere = transform.GetChild(1).GetComponent<SphereCollider>();
+            RpcExlode(sphere.transform.TransformPoint(sphere.center), ExplosionFeedbackPool.WorldRadius(sphere));
             StartCoroutine(Decay());
         }
     }
@@ -39,10 +44,24 @@ public class Grenade : NetworkBehaviour
         NetworkServer.Destroy(gameObject);
     }
 
-    [ClientRpc]
-    void RpcExlode()
+    void HideForExplosion()
     {
-        GameObject explosion = Instantiate(_explosionPrefab, transform.position, transform.rotation);
-        Destroy(explosion, 3f);
+        _collider.enabled = false;
+        _renderer.enabled = false;
+        var body = GetComponent<Rigidbody>();
+        if (body != null && !body.isKinematic)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.collisionDetectionMode = CollisionDetectionMode.Discrete;
+            body.isKinematic = true;
+        }
+    }
+
+    [ClientRpc]
+    void RpcExlode(Vector3 center, float radius)
+    {
+        HideForExplosion();
+        ExplosionFeedbackPool.Play(_explosionPrefab, center, radius, transform.rotation);
     }
 }

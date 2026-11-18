@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -14,6 +14,9 @@ public class PlayerShoot : NetworkBehaviour {
     private PlayerController _playerController;
     public AudioSource source { get; set; }
     public AudioClip shot;
+    [SerializeField] private AudioClip _rifleShot;
+    private AudioSource[] _rifleVoices;
+    private int _nextRifleVoice;
     public AudioClip hitMarker;
     public AudioClip reload;
     public AudioClip pistol;
@@ -278,7 +281,7 @@ public class PlayerShoot : NetworkBehaviour {
     void PerformWeaponFire(float recoilScale = 1f) {
         if (Equipment.getActiveWeapon().CurrentMagAmmo >= 1) {
             Equipment.PlayerShooting();
-            playSound(shot);
+            playSootSound();
             Equipment.getActiveWeapon().shoot();
             gameObject.GetComponent<PlayerMotor>().IncreaseRecoil(currentRecoil * recoilScale);
             CmdPlayerShooting();
@@ -286,25 +289,23 @@ public class PlayerShoot : NetworkBehaviour {
             if (Physics.Raycast(Cam.transform.position, Cam.transform.forward, out hit,
                 Equipment.getActiveWeapon().Range,
                 _mask, QueryTriggerInteraction.Ignore)) {
-                if (hit.collider.tag == "Player") { //wylaczamy friendly fire??? NIE XD
-                    StartCoroutine(ShowHitmarker());
-                    CmdPlayerShoot(hit.collider.GetComponentInParent<PlayerManager>().transform.name,
-                        Equipment.getActiveWeapon().Damage);
+                bool enemyHit = hit.collider.CompareTag("EnemyHead") || hit.collider.CompareTag("EnemyBody") || hit.collider.CompareTag("EnemyLegs");
+                bool usesEnemyFeedback = enemyHit && hit.collider.GetComponentInParent<EnemyFeedback>() != null;
+                if (hit.collider.CompareTag("Player")) {
+                    var target = hit.collider.GetComponentInParent<PlayerManager>();
+                    if (target != null && !target.IsDead && GameManager.Instance.CanDamagePlayers) {
+                        StartCoroutine(ShowHitmarker());
+                        CmdPlayerShoot(target.transform.name, Equipment.getActiveWeapon().Damage);
+                    }
                 }
-                else if (hit.collider.tag == "EnemyHead") {
+                else if (enemyHit) {
                     StartCoroutine(ShowHitmarker());
-                    CmdEnemyShoot(hit.collider.GetComponentInParent<NavMeshAgent>().transform.name,
-                        3 * Equipment.getActiveWeapon().Damage);
-                }
-                else if (hit.collider.tag == "EnemyBody") {
-                    StartCoroutine(ShowHitmarker());
-                    CmdEnemyShoot(hit.collider.GetComponentInParent<NavMeshAgent>().transform.name,
-                        2 * Equipment.getActiveWeapon().Damage);
-                }
-                else if (hit.collider.tag == "EnemyLegs") {
-                    StartCoroutine(ShowHitmarker());
-                    CmdEnemyShoot(hit.collider.GetComponentInParent<NavMeshAgent>().transform.name,
-                        Equipment.getActiveWeapon().Damage);
+                    var enemy = hit.collider.GetComponentInParent<EnemyControllerServer>();
+                    if (enemy != null) {
+                        float multiplier = hit.collider.CompareTag("EnemyHead") ? 3f : hit.collider.CompareTag("EnemyBody") ? 2f : 1f;
+                        CmdEnemyShoot(enemy.transform.name, multiplier * Equipment.getActiveWeapon().Damage,
+                            enemy.transform.InverseTransformPoint(hit.point), enemy.transform.InverseTransformDirection(hit.normal));
+                    }
                 }
                 else if (hit.collider.tag == "Barrel") {
                     Barrel barrel = hit.collider.GetComponent<Barrel>();
@@ -316,8 +317,11 @@ public class PlayerShoot : NetworkBehaviour {
                 }
 
 
-                Equipment.DoHitEffect(hit.point, hit.normal);
-                CmdOnHit(hit.point, hit.normal);
+                // Enemy hits use their server-confirmed green effect, once on every peer.
+                if (!usesEnemyFeedback) {
+                    Equipment.DoHitEffect(hit.point, hit.normal);
+                    CmdOnHit(hit.point, hit.normal);
+                }
             }
 
             if (Equipment.getActiveWeapon().CurrentMagAmmo == 0 && Equipment.getActiveWeapon().CurrentAmmo >= 1)
@@ -347,7 +351,38 @@ public class PlayerShoot : NetworkBehaviour {
 
     public void playSootSound()
     {
-        playSound(shot);
+        if (Equipment == null || Equipment.getActiveWeapon() == null || Equipment.getActiveWeapon().Id != 1 || _rifleShot == null)
+        {
+            playSound(shot);
+            return;
+        }
+        if (_rifleVoices == null)
+        {
+            _rifleVoices = new AudioSource[2];
+            for (int i = 0; i < _rifleVoices.Length; i++)
+            {
+                var voice = gameObject.AddComponent<AudioSource>();
+                voice.playOnAwake = false;
+                voice.clip = _rifleShot;
+                voice.spatialBlend = source.spatialBlend;
+                voice.rolloffMode = source.rolloffMode;
+                voice.minDistance = source.minDistance;
+                voice.maxDistance = source.maxDistance;
+                if (source.rolloffMode == AudioRolloffMode.Custom)
+                    voice.SetCustomCurve(AudioSourceCurveType.CustomRolloff, source.GetCustomCurve(AudioSourceCurveType.CustomRolloff));
+                voice.outputAudioMixerGroup = source.outputAudioMixerGroup;
+                voice.priority = source.priority;
+                voice.volume = source.volume * 0.9f;
+                voice.dopplerLevel = 0;
+                voice.bypassReverbZones = true;
+                _rifleVoices[i] = voice;
+            }
+        }
+        // Two bounded dry voices retain the shot's bass body without stacking long echoes.
+        var next = _rifleVoices[_nextRifleVoice];
+        _nextRifleVoice = (_nextRifleVoice + 1) % _rifleVoices.Length;
+        next.Stop();
+        next.Play();
     }
 
     IEnumerator ShowHitmarker() {
@@ -381,9 +416,14 @@ public class PlayerShoot : NetworkBehaviour {
     }
 
     [Command]
-    void CmdEnemyShoot(string shootEnemyId, float damage) {
+    void CmdEnemyShoot(string shootEnemyId, float damage, Vector3 localPoint, Vector3 localNormal) {
         EnemyControllerServer enemy = GameManager.GetEnemy(shootEnemyId);
-        if (enemy != null && IsPlausibleDamage(damage)) enemy.TakeDamage(damage);
+        if (enemy == null || enemy._isDying || !IsPlausibleDamage(damage)) return;
+        var feedback = enemy.GetComponent<EnemyFeedback>();
+        // Impact validation is cosmetic; it does not replace the existing damage validation.
+        bool validImpact = feedback != null && feedback.IsValidImpact(localPoint, localNormal);
+        enemy.TakeDamage(damage);
+        if (validImpact) feedback.BulletHit(localPoint, localNormal);
     }
 
 

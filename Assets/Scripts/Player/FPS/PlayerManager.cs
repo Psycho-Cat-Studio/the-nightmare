@@ -17,6 +17,13 @@ public class PlayerManager : NetworkBehaviour
     [SyncVar] private string _displayName = "";
     public string DisplayName { get { return string.IsNullOrEmpty(_displayName) ? transform.name : _displayName; } }
 
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        _isDead = false;
+        _currentHealth = _maxHealth;
+    }
+
     public override void OnStartLocalPlayer()
     {
         base.OnStartLocalPlayer();
@@ -94,13 +101,16 @@ public class PlayerManager : NetworkBehaviour
         girl = transform.GetChild(0).GetChild(1).gameObject;
         _playerAnimator = boy.GetComponent<Animator>();
         if (isLocalPlayer) SetLayerRecursively(transform.GetChild(0).gameObject, 12);
+        // The weapon mask includes RemotePlayer but deliberately excludes our own body.
+        int hitLayer = LayerMask.NameToLayer(isLocalPlayer ? "LocalPlayer" : "RemotePlayer");
+        foreach (var collider in GetComponentsInChildren<Collider>(true))
+            if (collider.CompareTag("Player")) collider.gameObject.layer = hitLayer;
         _rigidbody = GetComponent<Rigidbody>();
         _wasEnabled = new bool[_disableOnDeath.Length];
 
         for (int i = 0; i < _wasEnabled.Length; i++) _wasEnabled[i] = _disableOnDeath[i].enabled;
         
         _camera = transform.GetChild(1).gameObject;
-       _currentHealth = _maxHealth;
         _placementController = GetComponent<PlacementController>();
         if (isLocalPlayer) _cross = GameObject.Find("cross");
         //SetBuildingMode();
@@ -181,7 +191,7 @@ public class PlayerManager : NetworkBehaviour
     [Server]
     public void TakeDamage(float damage)
     {
-        if (_isDead || damage <= 0f) return;
+        if (_isDead || damage <= 0f || GameManager.Instance == null || !GameManager.Instance.CanDamagePlayers) return;
 
         _currentHealth = Mathf.Max(0f, _currentHealth - damage);
         if (_currentHealth <= 0f)

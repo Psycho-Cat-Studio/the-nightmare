@@ -268,6 +268,7 @@ GameObject:
   - component: {fileID: 1860152029020784033}
   - component: {fileID: 6242839686703534753}
   - component: {fileID: 2298389759188726780}
+  - component: {fileID: 456021215218113555}
   m_Layer: 0
   m_Name: Skeleton
   m_TagString: Enemy
@@ -860,3 +861,32 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   syncDirection: 0
+--- !u!114 &456021215218113555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6513423205020058902}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8c163eb4aff9858eab3e112bc93abecf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyFeedback
+  syncMethod: 0
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  _hurtClips:
+  - {fileID: 8300000, guid: 90b17d42f96372579a77c6292bd17088, type: 3}
+  - {fileID: 8300000, guid: 8e054941b2f0b4854beef69a62c95391, type: 3}
+  - {fileID: 8300000, guid: 8fc909fa67ce2afa8b9aa697f5edb0cc, type: 3}
+  _attackClips:
+  - {fileID: 8300000, guid: 48235a635aa70ab8ea6de9296b5cd99c, type: 3}
+  - {fileID: 8300000, guid: 31ff3b6d232ce4e53b2470a30b0809d1, type: 3}
+  - {fileID: 8300000, guid: 67fa2945488a5ec71bb63fc7fd1fff5e, type: 3}
+  _deathClips:
+  - {fileID: 8300000, guid: 3a30db57b08960dd093a225f7f4b97ad, type: 3}
+  - {fileID: 8300000, guid: 0041447432a1b6ead9017be403bce795, type: 3}
+  - {fileID: 8300000, guid: b003dfe35ff81b8c689507e33b238f19, type: 3}
+  _impactMaterial: {fileID: 2100000, guid: 4e3a3d213d47f001d80d79e037f583fc, type: 2}
