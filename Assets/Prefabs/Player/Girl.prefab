@@ -953,6 +953,7 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   shot: {fileID: 8300000, guid: a64ec701992d4e563b1427cbf77ec6c6, type: 3}
+  _rifleShot: {fileID: 8300000, guid: fe5325647f4d8d203850cdeb105d1eee, type: 3}
   hitMarker: {fileID: 8300000, guid: f721b9607b73b5a4f808331c53dce5b4, type: 3}
   reload: {fileID: 8300000, guid: 854c24c065c346a4aacd07023b2e64fc, type: 3}
   pistol: {fileID: 8300000, guid: bf7e24bedb267c14ebb940153e79b378, type: 3}
@@ -1883,16 +1884,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4131442063337385902, guid: 7d917871d8c970a45a02188b364bfcb6, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3953590870183607671}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 7d917871d8c970a45a02188b364bfcb6, type: 3}
---- !u!1 &570504736184090103 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4131442063337385902, guid: 7d917871d8c970a45a02188b364bfcb6, type: 3}
-  m_PrefabInstance: {fileID: 4521336546258506329}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &2370268052889161346 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2187590114338708699, guid: 7d917871d8c970a45a02188b364bfcb6, type: 3}

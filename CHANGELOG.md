@@ -42,6 +42,21 @@
 - Crashes when players had different system languages (e.g. Polish and English) are fixed.
 
 ### Gameplay fixes
+- Enable weapon friendly fire through correct remote hit-collider layers; keep all player damage disabled in lobby and results screens.
+- Initialize player HP on the server before spawn replication instead of overwriting it during client setup.
+- Preserve the original grenade/trash-can explosion animation and sound while adding pooled playback and world-radius ground rings.
+- Scale damage-screen redness with low remaining HP, keeping healthy-player hits subtle.
+- Stop/reset candle alarms and warning icons between rooms and outside combat.
+- Improve death-voice audibility and priority; restore rifle bass/body with a bounded two-voice dry mix.
+- Retain melee contact through enemy screams, without damage before the scream finishes; recover missed trigger enters and handle multiple colliders.
+- Route the room-2 entrance spawn to the other candle area for its first target; use nearest-area retargeting afterwards.
+- Play one short, varied death shriek per enemy and prevent stacked long rifle-shot tails.
+- Show a brief red screen-edge pulse when the local player takes damage, independent of post-processing.
+- Separate low spectral attack growls from the sharper enemy pain shrieks.
+- Add server-confirmed green enemy hit flares, brief torso/head reactions preserving arm poses and varied, audible wraith shrieks without hit-stun or damage changes.
+- Vary skeleton attack animations and spatial attack sounds while retaining existing contact DPS and death priority.
+- Let pain vocals finish across rapid hits and suppress attack voices until pain ends.
+- Keep candle-area contact handling server-only to avoid a client enemy-initialization race during spawning.
 - Limit placeable items to two grid tiles around the player; validate reach and free cells on the server, spending inventory only after confirmation.
 - Restore the immediate T placement preview, aim it through the FPS crosshair and highlight the candidate grid cell yellow.
 - Align grid visuals with physical floors so they do not cut through low traps; clear highlights on cancellation, placement and pause.

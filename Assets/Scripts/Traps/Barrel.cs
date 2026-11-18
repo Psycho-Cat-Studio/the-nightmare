@@ -12,11 +12,10 @@ public class Barrel : NetworkBehaviour
     public string InitialPosAndTag { get; set; }
     private bool _exploded;
 
-    private void Start()
+    private void Awake()
     {
         _collider = GetComponent<BoxCollider>();
         _renderer = GetComponent<MeshRenderer>();
-        if (isServer) transform.GetChild(0).GetComponent<BarrelCollider>().server = true;
     }
 
     // Server only. Two shots, a grenade and a neighbouring barrel can all trigger it in the same
@@ -28,8 +27,11 @@ public class Barrel : NetworkBehaviour
         _exploded = true;
         _collider.enabled = false;
         _renderer.enabled = false;
-        transform.GetChild(0).gameObject.SetActive(true);
-        RpcExlodeBarrel(InitialPosAndTag);
+        var trigger = transform.GetChild(0);
+        trigger.GetComponent<BarrelCollider>().server = true;
+        trigger.gameObject.SetActive(true);
+        var sphere = trigger.GetComponent<SphereCollider>();
+        RpcExlodeBarrel(InitialPosAndTag, sphere.transform.TransformPoint(sphere.center), ExplosionFeedbackPool.WorldRadius(sphere));
         StartCoroutine(Decay());
     }
 
@@ -40,15 +42,11 @@ public class Barrel : NetworkBehaviour
     }
 
     [ClientRpc]
-    public void RpcExlodeBarrel(string posAndTag)
+    public void RpcExlodeBarrel(string posAndTag, Vector3 center, float radius)
     {
-        GameObject explosion = Instantiate(_explosionPrefab, transform.position, Quaternion.Euler(-90f, 0f, 0f));
-        Destroy(explosion, 3f);
-        if (!isServer)
-        {
-            _collider.enabled = false;
-            _renderer.enabled = false;
-        }
+        _collider.enabled = false;
+        _renderer.enabled = false;
+        ExplosionFeedbackPool.Play(_explosionPrefab, center, radius, Quaternion.Euler(-90f, 0f, 0f));
 
         GridPoint point;
         if (posAndTag != null && GameManager.Instance.BuildingPoints.TryGetValue(posAndTag, out point))

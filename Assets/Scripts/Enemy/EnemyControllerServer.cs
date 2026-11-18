@@ -41,6 +41,12 @@ public class EnemyControllerServer : NetworkBehaviour
     public Snares SnaresToDestroy { get; set; }
 
     private bool _init = false;
+    private BoxCollider _meleeTrigger;
+    private readonly HashSet<Collider> _playerContacts = new HashSet<Collider>();
+    private CaptureArea _initialCaptureArea;
+
+    // Set by the spawning server before Start; never biases subsequent retargeting.
+    public void SetInitialCaptureArea(CaptureArea area) { _initialCaptureArea = area; }
     public bool IsTriggerLocked { get; set; }
 
     public bool ShouldScream { get; set; }
@@ -56,7 +62,6 @@ public class EnemyControllerServer : NetworkBehaviour
             int randInt = Random.Range(0, 5);
             if (randInt == 0) ShouldScream = true;
             _source = GetComponent<AudioSource>();
-            StartCoroutine(SetClosestCaptureAreaStart());
             IsWalking = true;
             _currentHealth = _maxHealth;
             _animator = GetComponentInChildren<Animator>();
@@ -65,14 +70,21 @@ public class EnemyControllerServer : NetworkBehaviour
         Agent = GetComponent<NavMeshAgent>();
         //Obstacle = GetComponent<NavMeshObstacle>();
         Agent.speed = 2f;
+        if (isServer)
+        {
+            _meleeTrigger = GetComponent<BoxCollider>();
+            _init = true;
+            SelectCaptureArea(true);
+        }
     }
 
     private void Update()
     {
+        if (!_init || _isDying) return;
         switch(_currentState)
         {
             case EnemyState.Walking:
-                if (Dest != null && Dest.gameObject.activeSelf)
+                if (HasValidDestination())
                 {
                     if (!Agent.SetDestination(Dest.position))
                     {
@@ -81,7 +93,7 @@ public class EnemyControllerServer : NetworkBehaviour
                 }
                 else SetClosestCaptureArea();
                 _screamTimer -= Time.deltaTime;
-                if (Agent.remainingDistance < DIST_TO_SCREAM && _screamTimer <= 0f)
+                if (!Agent.pathPending && Agent.hasPath && Agent.remainingDistance < DIST_TO_SCREAM && _screamTimer <= 0f)
                 {
                     if (ShouldScream)
                     {
@@ -101,7 +113,7 @@ public class EnemyControllerServer : NetworkBehaviour
                 break;
 
             case EnemyState.Running:
-                if (Dest != null && Dest.gameObject.activeSelf)
+                if (HasValidDestination())
                 {
                     if (!Agent.SetDestination(Dest.position))
                     {
@@ -117,22 +129,29 @@ public class EnemyControllerServer : NetworkBehaviour
                 if (_screamTimer >= SCREAM_TIME)
                 {
                     SetAnim("screaming", false);
-                    SetAnim("running", true);
-                    _currentState = EnemyState.Running;
-                    TurnOnWalking(true);
+                    CurrentState = EnemyState.Running;
                     SetAgentSpeed(3.5f);
+                    if (!TryBeginContactFight())
+                    {
+                        SetAnim("running", true);
+                        TurnOnWalking(true);
+                    }
                 }
                 break;
 
             case EnemyState.Fighting:
 
-                if (_damageDest == null || _damageDest.IsDead || !_damageDest.gameObject.activeSelf)
+                var previousTarget = _damageDest;
+                _damageDest = GetContactTarget();
+                if (_damageDest == null)
                 {
-                    _damageDest = null;
                     TurnOnWalking(true);
-                    SetClosestCaptureArea();
+                    // Leaving melee range resumes the existing chase of a live player.
+                    if (previousTarget != null && !previousTarget.IsDead && previousTarget.gameObject.activeInHierarchy)
+                        PlayerDetected(previousTarget.transform);
+                    else SetClosestCaptureArea();
                     SetAnim("running", true);
-                    _currentState = EnemyState.Walking;
+                    CurrentState = EnemyState.Running;
                 }
                 else _damageDest.TakeDamage(Time.deltaTime * _damage);
                 
@@ -152,100 +171,43 @@ public class EnemyControllerServer : NetworkBehaviour
 
     public void PlayerDetected(Transform playerTransform)
     {
+        if (!isServer || !_init || _isDying || CurrentState == EnemyState.Blocked) return;
+        var player = playerTransform.GetComponent<PlayerManager>();
+        if (player == null || player.IsDead) return;
         Dest = playerTransform;
         
         RpcSendDest(playerTransform.name, false);
         IsTriggerLocked = true;
     }
 
-    private IEnumerator SetClosestCaptureAreaStart()
+    private bool HasValidDestination()
     {
-        yield return new WaitForSeconds(1f);
+        if (Dest == null || !Dest.gameObject.activeInHierarchy) return false;
+        var player = Dest.GetComponent<PlayerManager>();
+        return player == null || !player.IsDead;
+    }
 
-        List<Transform> captureAreas = new List<Transform>();
+    public void SetClosestCaptureArea() { SelectCaptureArea(false); }
+
+    private void SelectCaptureArea(bool initial)
+    {
         IsTriggerLocked = false;
-        foreach (CaptureArea captureArea in GameManager.Instance.CurrentCaptureAreas.Values)
+        CaptureArea preferred = initial ? _initialCaptureArea : null;
+        if (initial) _initialCaptureArea = null;
+        Transform closest = null;
+        float minDistance = Mathf.Infinity;
+        foreach (var area in GameManager.Instance.CurrentCaptureAreas.Values)
         {
-            captureAreas.Add(captureArea.transform);
+            if (area == null || !area.gameObject.activeInHierarchy || area.IsCaptured) continue;
+            if (!initial && area.EnemyNum >= 7) continue;
+            if (area == preferred) { closest = area.transform; break; }
+            float distance = (area.transform.position - transform.position).sqrMagnitude;
+            if (distance < minDistance) { closest = area.transform; minDistance = distance; }
         }
-
-        Transform tMin = null;
-        float minDist = Mathf.Infinity;
-        Vector3 currentPos = transform.position;
-        foreach (Transform t in captureAreas)
-        {
-            float dist = Vector3.Distance(t.position, currentPos);
-            if (dist < minDist)
-            {
-                tMin = t;
-                minDist = dist;
-            }
-        }
-        Dest = tMin;
+        Dest = closest;
         if (Dest)
         {
             string areaId = Dest.position.x.ToString() + "_" + Dest.position.y.ToString() + "_" + Dest.position.z.ToString();
-            RpcSendDest(areaId, true);
-        }
-        else RpcSendDest(NO_DESTINATION, true);
-    }
-
-
-
-    /*private IEnumerator SetClosestPlayerStart()
-    {
-        yield return new WaitForSeconds(1f);
-
-        List<Transform> players = new List<Transform>();
-        
-        foreach (PlayerManager player in GameManager.ActivePlayers.Values)
-            players.Add(player.transform);
-        
-        Transform tMin = null;
-        float minDist = Mathf.Infinity;
-        Vector3 currentPos = transform.position;
-        foreach (Transform t in players)
-        {
-            float dist = Vector3.Distance(t.position, currentPos);
-            if (dist < minDist)
-            {
-                tMin = t;
-                minDist = dist;
-            }
-        }
-        Dest =  tMin;
-        if (Dest) RpcSendDest(Dest.name);
-        else RpcSendDest(NO_DESTINATION);
-    }*/
-
-    public void SetClosestCaptureArea()
-    {
-        List<Transform> captureAreas = new List<Transform>();
-        IsTriggerLocked = false;
-        foreach (CaptureArea captureArea in GameManager.Instance.CurrentCaptureAreas.Values)
-        {
-            if (captureArea.EnemyNum < 7)
-            {
-                captureAreas.Add(captureArea.transform);
-            }
-        }
-
-        Transform tMin = null;
-        float minDist = Mathf.Infinity;
-        Vector3 currentPos = transform.position;
-        foreach (Transform t in captureAreas)
-        {
-            float dist = Vector3.Distance(t.position, currentPos);
-            if (dist < minDist)
-            {
-                tMin = t;
-                minDist = dist;
-            }
-        }
-        Dest = tMin;
-        if (Dest)
-        {
-            string areaId = Dest.position.x.ToString() + "_" + Dest.position.y.ToString() + "_"  + Dest.position.z.ToString();
             RpcSendDest(areaId, true);
         }
         else RpcSendDest(NO_DESTINATION, true);
@@ -264,6 +226,8 @@ public class EnemyControllerServer : NetworkBehaviour
             _isDying = true;
             TurnOnWalking(false);
             SetAnim("die", true);
+            _playerContacts.Clear();
+            GetComponent<EnemyFeedback>()?.ServerDied();
             StartCoroutine(Die());
             _currentState = EnemyState.Blocked;
         }
@@ -345,32 +309,62 @@ public class EnemyControllerServer : NetworkBehaviour
     }
 
 
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other) { TrackPlayerContact(other); }
+    private void OnTriggerStay(Collider other) { TrackPlayerContact(other); }
+
+    private void TrackPlayerContact(Collider other)
     {
-        if (enabled)
-        {
-            if (other.CompareTag("Player") && CurrentState == EnemyState.Running)
-            {
-                _damageDest = other.GetComponentInParent<PlayerManager>();
-                TurnOnWalking(false);
-                CurrentState = EnemyState.Fighting;
-                SetAnim("running", false);
-            }
-        }
+        if (!isServer || !enabled || !_init || _isDying || !other.CompareTag("Player")) return;
+        _playerContacts.Add(other);
+        // During Screaming we only remember overlaps. The state completes before attacking.
+        TryBeginContactFight();
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.gameObject.CompareTag("Player") && enabled && CurrentState == EnemyState.Fighting)
-        {
-            _damageDest = null;
-            TurnOnWalking(true);
-            SetAnim("running", true);
-            CurrentState = EnemyState.Running;
-        }
+        if (isServer) _playerContacts.Remove(other);
+        // Fighting rechecks the whole set, so another collider/player can retain contact.
     }
 
-   
+    private static bool InvalidContact(Collider other)
+    {
+        return other == null || !other.enabled || !other.gameObject.activeInHierarchy;
+    }
+
+    private PlayerManager GetContactTarget()
+    {
+        _playerContacts.RemoveWhere(InvalidContact);
+        if (_meleeTrigger == null || !_meleeTrigger.enabled) return null;
+        PlayerManager closest = null;
+        float minDistance = Mathf.Infinity;
+        foreach (var other in _playerContacts)
+        {
+            var player = other.GetComponentInParent<PlayerManager>();
+            if (player == null || player.IsDead) continue;
+            // The larger child detector also reports triggers to the Rigidbody root.
+            // Only overlap with the actual root attack box may deal damage.
+            Vector3 direction; float distance;
+            if (!Physics.ComputePenetration(_meleeTrigger, _meleeTrigger.transform.position,
+                _meleeTrigger.transform.rotation, other, other.transform.position,
+                other.transform.rotation, out direction, out distance)) continue;
+            float sqrDistance = (player.transform.position - transform.position).sqrMagnitude;
+            if (sqrDistance < minDistance) { closest = player; minDistance = sqrDistance; }
+        }
+        return closest;
+    }
+
+    private bool TryBeginContactFight()
+    {
+        if (CurrentState != EnemyState.Running) return false;
+        var player = GetContactTarget();
+        if (player == null) return false;
+        _damageDest = player;
+        IsTriggerLocked = true;
+        TurnOnWalking(false);
+        CurrentState = EnemyState.Fighting;
+        SetAnim("running", false);
+        return true;
+    }
 
     public void TurnOnWalking(bool isOn)
     {
