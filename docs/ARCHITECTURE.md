@@ -25,6 +25,9 @@ for deletion.
 
 ## Networking (Mirror)
 
+Current LAN decision, the old UNet comparison and future online-service options are recorded in
+[NETWORKING.md](NETWORKING.md).
+
 - **`CustomNetworkManager`** (`Scripts/Networking`) extends Mirror's `NetworkManager`. It handles:
   - host/join by IP, with the KCP transport on UDP 7777,
   - rejecting joins when the game is full or the match has started (`RejectMessage`),

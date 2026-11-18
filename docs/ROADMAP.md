@@ -25,8 +25,9 @@ See [CHANGELOG.md](../CHANGELOG.md). In short:
 3. **Menus**:
    - Settings now use the existing uGUI artwork/font; complete cross-platform UI acceptance.
    - Add a "Play solo" button that hosts a private game.
-4. **Internet play without port forwarding**: a relay/NAT-punch transport. Use Steam (FizzySteamworks)
-   if the game goes on Steam, otherwise Epic Online Services or Unity Relay. Join codes instead of IPs.
+4. **Internet play without port forwarding**: defer provider selection; keep Mirror/direct LAN for
+   current same-Wi-Fi play. Evaluate relay/lobby integration and optional NGO migration using
+   [NETWORKING.md](NETWORKING.md). Steam-only versus PC/mobile cross-play must inform the choice.
 5. **Server-side hit validation / lag compensation**: the server re-checks the shot ray against
    rewound positions instead of trusting the client's hit report. Today only the damage is capped.
 6. **Key rebinding** in the settings window.

@@ -64,6 +64,9 @@ docker run --rm -v "$PWD:/project" -w /project unityci/editor:ubuntu-6000.6.7f1-
 
 ## Playing together
 
+Keep the existing Mirror stack for same-Wi-Fi play. See [NETWORKING.md](NETWORKING.md) for the
+networking decision, troubleshooting and future relay/lobby options.
+
 The Unity matchmaking/relay service the game originally used has been shut down. The game now
 uses direct connections:
 
