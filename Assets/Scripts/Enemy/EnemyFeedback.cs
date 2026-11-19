@@ -1,5 +1,6 @@
 using Mirror;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // Cosmetic only. Damage, navigation and the enemy state machine remain server-owned elsewhere.
 public class EnemyFeedback : NetworkBehaviour
@@ -8,14 +9,18 @@ public class EnemyFeedback : NetworkBehaviour
     [SerializeField] AudioClip[] _attackClips = new AudioClip[0];
     [SerializeField] AudioClip[] _deathClips = new AudioClip[0];
     [SerializeField] Material _impactMaterial;
+    [FormerlySerializedAs("_groundDeathVisual")]
+    [SerializeField] bool _spectralDeath;
+    [SerializeField] ParticleSystem _spectralDeathEffect;
     const float HurtDuration = 0.3f;
     const float HurtCooldown = 0.25f;
     const float HurtVoiceCooldown = 0.9f;
-    // All attack variants are authored to 1.5 seconds, retaining the original 1.7 state speed.
-    const float AttackDuration = 1.5f / 1.7f;
+    [SerializeField] float _attackDuration = 1.5f / 1.7f;
+    [SerializeField] int _attackVariants = 3;
+    [SerializeField] string _attackStateName = "Base Layer.Punching";
+    [SerializeField] string _hurtStateName = "Hit feedback.Hit";
     static readonly int AttackVariant = Animator.StringToHash("attackVariant");
-    static readonly int AttackState = Animator.StringToHash("Base Layer.Punching");
-    static readonly int HurtState = Animator.StringToHash("Hit feedback.Hit");
+    int _attackState, _hurtState;
     Animator _animator;
     EnemyControllerServer _enemy;
     AudioSource _voice;
@@ -31,6 +36,8 @@ public class EnemyFeedback : NetworkBehaviour
 
     void Awake()
     {
+        _attackState = Animator.StringToHash(_attackStateName);
+        _hurtState = Animator.StringToHash(_hurtStateName);
         _enemy = GetComponent<EnemyControllerServer>();
         _animator = GetComponentInChildren<Animator>(true);
         _body = GetComponentsInChildren<SkinnedMeshRenderer>(true);
@@ -91,7 +98,7 @@ public class EnemyFeedback : NetworkBehaviour
         // rather than wait for that movement buffer to catch up with the event timestamp.
         _hurtStarted = Time.unscaledTimeAsDouble;
         if (_hurtLayer >= 0)
-            _animator.Play(HurtState, _hurtLayer, 0);
+            _animator.Play(_hurtState, _hurtLayer, 0);
         _attackSoundAt = -1;
         if (PlayVoice(_hurtClips, hurt, pitch, 1f, 128))
             _painUntil = Time.unscaledTimeAsDouble + _voice.clip.length / pitch;
@@ -111,7 +118,7 @@ public class EnemyFeedback : NetworkBehaviour
         int cycle = Mathf.FloorToInt(state.normalizedTime);
         if (_attackCycle == cycle) return;
         _attackCycle = cycle;
-        int variant = Next(3, ref _lastAttack);
+        int variant = Next(_attackVariants, ref _lastAttack);
         int sound = Next(_attackClips.Length, ref _lastAttackSound);
         RpcAttack(variant, sound, Random.Range(0.95f, 1.05f), NetworkTime.localTime);
     }
@@ -123,12 +130,12 @@ public class EnemyFeedback : NetworkBehaviour
         _animator.SetFloat(AttackVariant, variant);
         // Predicted time estimates the server clock without the snapshot buffer. Bound
         // catch-up so a delayed/early estimate never skips an entire visual attack.
-        float age = isServer ? 0f : Mathf.Clamp((float)(NetworkTime.predictedTime - NetworkTime.rtt * 0.5 - started), 0f, AttackDuration * 0.5f);
+        float age = isServer ? 0f : Mathf.Clamp((float)(NetworkTime.predictedTime - NetworkTime.rtt * 0.5 - started), 0f, _attackDuration * 0.5f);
         if (!isServer)
-            _animator.Play(AttackState, 0, age / AttackDuration);
+            _animator.Play(_attackState, 0, age / _attackDuration);
         _pendingAttackSound = sound;
         _pendingPitch = pitch;
-        _attackSoundAt = Time.unscaledTimeAsDouble + Mathf.Max(0f, AttackDuration * 0.2f - age);
+        _attackSoundAt = Time.unscaledTimeAsDouble + Mathf.Max(0f, _attackDuration * 0.2f - age);
     }
 
     void LateUpdate()
@@ -170,6 +177,23 @@ public class EnemyFeedback : NetworkBehaviour
         _dead = true;
         _attackSoundAt = -1;
         if (_animator != null && _hurtLayer >= 0) _animator.SetLayerWeight(_hurtLayer, 0);
+        if (_spectralDeath && _animator != null)
+        {
+            // Freeze the current pose: no fall or root displacement before the fast dissolve.
+            _animator.enabled = false;
+            if (_spectralDeathEffect != null)
+            {
+                // Replay the existing spawn effect in place, without overlapping its old particles.
+                _spectralDeathEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                foreach (var particles in _spectralDeathEffect.GetComponentsInChildren<ParticleSystem>(true))
+                {
+                    var main = particles.main;
+                    main.startDelay = 0f;
+                    main.simulationSpeed = 1.5f;
+                }
+                _spectralDeathEffect.Play(true);
+            }
+        }
         // The old charge scream is a separate source and may still have a long tail.
         var scream = GetComponent<AudioSource>();
         if (scream != null && scream != _voice) scream.Stop();

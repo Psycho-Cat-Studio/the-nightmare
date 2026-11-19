@@ -15,6 +15,12 @@ public class PlacementController : NetworkBehaviour
     private GameObject _currentObject;
     private GridPoint _previewPoint;
     private bool _placementPending;
+    [SerializeField] private Material _invalidPreviewMaterial;
+    private Renderer[] _previewRenderers;
+    private Material[][] _previewMaterials;
+    private Material[][] _invalidMaterials;
+    private float _invalidUntil;
+
     private string _currentTag;
     private Transform _buildingCameraHolder;
     private Camera _buildingCamera;
@@ -62,6 +68,7 @@ public class PlacementController : NetworkBehaviour
 
     public void InstantietePlaceable(int index)
     {
+        if (_placementPending) return;
         _placeableIndex = index;
         UpdatePlaceable();
           
@@ -107,9 +114,13 @@ public class PlacementController : NetworkBehaviour
         HandleKeys();
         if (_currentObject != null)
         {
-            RotateWheel();
-            MoveToMouse();
-            ReleaseOnClick();
+            if (!_placementPending)
+            {
+                RotateWheel();
+                MoveToMouse();
+                ReleaseOnClick();
+            }
+            UpdateInvalidPreview();
         }
         
     }
@@ -156,6 +167,7 @@ public class PlacementController : NetworkBehaviour
 
     void RotateWheel()
     {
+        if (_placementPending) return;
         _mouseWheelRotation = 0;
         _mouseWheelRotation += Input.mouseScrollDelta.y;
         
@@ -180,6 +192,7 @@ public class PlacementController : NetworkBehaviour
     public void ErasePlaceable()
     {
             ClearPreviewPoint();
+            RestorePreviewMaterials();
             if (_currentObject != null) Destroy(_currentObject);
             _currentObject = null;
             _isPlacing = false;
@@ -191,19 +204,61 @@ public class PlacementController : NetworkBehaviour
     void UpdatePlaceable()
     {
         ClearPreviewPoint();
+        RestorePreviewMaterials();
         Destroy(_currentObject);
         _currentObject = Instantiate(_placeableObjectModels[_placeableIndex]);
         // A preview must not catch its own placement ray or participate in physics.
         foreach (var collider in _currentObject.GetComponentsInChildren<Collider>()) collider.enabled = false;
         foreach (var body in _currentObject.GetComponentsInChildren<Rigidbody>()) body.isKinematic = true;
+        CachePreviewMaterials();
         MoveToMouse();
+    }
+
+    void CachePreviewMaterials()
+    {
+        _invalidUntil = 0;
+        _previewRenderers = _currentObject.GetComponentsInChildren<Renderer>(true);
+        _previewMaterials = new Material[_previewRenderers.Length][];
+        _invalidMaterials = new Material[_previewRenderers.Length][];
+        for (int i = 0; i < _previewRenderers.Length; i++)
+        {
+            _previewMaterials[i] = _previewRenderers[i].sharedMaterials;
+            _invalidMaterials[i] = new Material[_previewMaterials[i].Length];
+            for (int j = 0; j < _invalidMaterials[i].Length; j++)
+                _invalidMaterials[i][j] = _invalidPreviewMaterial;
+        }
+    }
+
+    void RestorePreviewMaterials()
+    {
+        _invalidUntil = 0;
+        if (_previewRenderers == null) return;
+        for (int i = 0; i < _previewRenderers.Length; i++)
+            if (_previewRenderers[i] != null) _previewRenderers[i].sharedMaterials = _previewMaterials[i];
+    }
+
+    void RejectPlacement()
+    {
+        PlaySound(nono);
+        _invalidUntil = Time.unscaledTime + 0.35f;
+        UpdateInvalidPreview();
+    }
+
+    void UpdateInvalidPreview()
+    {
+        if (_invalidUntil <= 0 || _invalidPreviewMaterial == null || _previewRenderers == null) return;
+        if (Time.unscaledTime >= _invalidUntil) { RestorePreviewMaterials(); return; }
+        bool red = Mathf.FloorToInt((0.35f - (_invalidUntil - Time.unscaledTime)) / 0.0875f) % 2 == 0;
+        for (int i = 0; i < _previewRenderers.Length; i++)
+            if (_previewRenderers[i] != null)
+                _previewRenderers[i].sharedMaterials = red ? _invalidMaterials[i] : _previewMaterials[i];
     }
 
     void ReleaseOnClick()
     {
         if (Input.GetMouseButtonDown(0) && _currentObject.activeSelf && !_placementPending)
         {
-            if (_previewPoint == null || !IsWithinPlacementRange(_currentObject.transform.position)) { PlaySound(nono); return; }
+            if (_previewPoint == null || !IsWithinPlacementRange(_currentObject.transform.position)) { RejectPlacement(); return; }
             string posAndTag = _currentObject.transform.position.x.ToString() + "_" + _currentObject.transform.position.z.ToString() + "_" + _currentTag;
             if(placeableCount[_placeableIndex] > 0)
             {
@@ -217,17 +272,15 @@ public class PlacementController : NetworkBehaviour
                     Vector3 position = _currentObject.transform.position;
                     Quaternion rotation = _currentObject.transform.rotation;
                     ClearPreviewPoint();
-                    Destroy(_currentObject);
-                    _currentObject = null;
+                    RestorePreviewMaterials();
                     _placementPending = true;
                     CmdPlaceEntity(position, rotation, _currentTag, _placeableIndex);
-                    _playerShoot.WasBuilt = true;
                 }
                 else
-                    PlaySound(nono);
+                    RejectPlacement();
             }
             else 
-                PlaySound(nono);
+                RejectPlacement();
         }
     }
 
@@ -277,8 +330,18 @@ public class PlacementController : NetworkBehaviour
     void TargetPlacementResult(NetworkConnectionToClient target, int index, bool accepted)
     {
         _placementPending = false;
-        PlaySound(accepted ? bop : nono);
-        if (!accepted) return;
+        if (!accepted)
+        {
+            if (_currentObject != null && GameManager.CurrentState == GameManager.GameState.Fighting)
+                GameManager.TurnOnGridRenders(true);
+            RejectPlacement();
+            return;
+        }
+        _playerShoot.WasBuilt = true;
+        PlaySound(bop);
+        RestorePreviewMaterials();
+        if (_currentObject != null) Destroy(_currentObject);
+        _currentObject = null;
         placeableCount[index]--;
         if (_placeableIndex == index && !hasNoPlaceable() && placeableCount[index] == 0)
             _placeableIndex = returnFirstAvailableBiggerIndex();
@@ -358,6 +421,15 @@ public class PlacementController : NetworkBehaviour
 
     void HandleKeys()
     {
+        if (_placementPending)
+        {
+            if (Input.GetKeyDown(KeyCode.T))
+            {
+                ErasePlaceable();
+                GameManager.TurnOnGridRenders(false);
+            }
+            return;
+        }
         switch (GameManager.CurrentState)
         {
             case GameManager.GameState.Fighting:

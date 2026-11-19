@@ -44,7 +44,8 @@ public class ExplosionFeedback : MonoBehaviour
         gameObject.SetActive(false);
         StopEffect();
         transform.SetPositionAndRotation(center, rotation);
-        transform.localScale = _authoredScale;
+        // Shared ratio: grenade reference radius 3.52 m, enlarged by 50% (20% above the previous visual size).
+        transform.localScale = _authoredScale * (1.5f * radius / 3.52f);
         Center = center;
         Radius = radius;
         Started = Time.timeAsDouble;

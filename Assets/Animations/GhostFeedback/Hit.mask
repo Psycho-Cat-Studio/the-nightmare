@@ -1,0 +1,135 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!319 &31900000
+AvatarMask:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Hit
+  m_Mask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000u
+  m_Elements:
+  - m_Path: 
+    m_Weight: 1
+  - m_Path: ghost_model:polySurface1
+    m_Weight: 0
+  - m_Path: spine
+    m_Weight: 1
+  - m_Path: spine/back
+    m_Weight: 1
+  - m_Path: spine/back/mostek
+    m_Weight: 1
+  - m_Path: spine/back/mostek/L_obojczyk
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint55
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint55/joint56
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint55/joint56/joint57
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint55/joint56/joint57/joint58
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint55/joint56/joint57/joint58/joint59
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint60
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint60/joint61
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint60/joint61/joint62
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint60/joint61/joint62/joint63
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint60/joint61/joint62/joint63/joint64
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint65
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint65/joint66
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint65/joint66/joint67
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint65/joint66/joint67/joint68
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint65/joint66/joint67/joint68/joint69
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint70
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint70/joint71
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint70/joint71/joint72
+    m_Weight: 0
+  - m_Path: spine/back/mostek/L_obojczyk/L_arm/L_elbow/L_wrist/joint70/joint71/joint72/joint73
+    m_Weight: 0
+  - m_Path: spine/back/mostek/neck
+    m_Weight: 1
+  - m_Path: spine/back/mostek/neck/head
+    m_Weight: 1
+  - m_Path: spine/back/mostek/neck/head/joint54
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint31
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint31/joint32
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint31/joint32/joint33
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint31/joint32/joint33/joint34
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint31/joint32/joint33/joint34/joint35
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint36
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint36/joint37
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint36/joint37/joint38
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint36/joint37/joint38/joint39
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint36/joint37/joint38/joint39/joint40
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint41
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint41/joint42
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint41/joint42/joint43
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint41/joint42/joint43/joint44
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint41/joint42/joint43/joint44/joint45
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint46
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint46/joint47
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint46/joint47/joint48
+    m_Weight: 0
+  - m_Path: spine/back/mostek/R_obojczyk/R_arm/R_elbow/R_wrist/joint46/joint47/joint48/joint49
+    m_Weight: 0
+  - m_Path: spine/tail
+    m_Weight: 0
+  - m_Path: spine/tail/joint3
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4/joint5
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4/joint5/joint6
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4/joint5/joint6/joint7
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4/joint5/joint6/joint7/joint8
+    m_Weight: 0
+  - m_Path: spine/tail/joint3/joint4/joint5/joint6/joint7/joint8/joint9
+    m_Weight: 0

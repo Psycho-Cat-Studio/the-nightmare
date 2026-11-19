@@ -155438,6 +155438,11 @@ MonoBehaviour:
   - {fileID: 3875958273512625560, guid: 56109102011c6ad4da9309723ed23078, type: 3}
   - {fileID: 7491229223940276313, guid: a2728d31051a6f64eb4ed8e203ea2b52, type: 3}
   - {fileID: 5180783451867056940, guid: 4069b5a4ee5e3ee42992951fe64c6690, type: 3}
+  _ghostPrefabs:
+  - {fileID: 6513423205020058902, guid: 9e358129297c07a9fb7fe21d56025ead, type: 3}
+  - {fileID: 627013582406413171, guid: ad50711cef6328de396e32bed9cc9ccf, type: 3}
+  - {fileID: 7512792158092108677, guid: e6af1afe3e99bb9c98f8990789a8dead, type: 3}
+  _ghostSpawnChance: 0.2
   _matchSettings:
     RespawnTimeLower: 1
     EnemyRespawnTImeUpper: 5

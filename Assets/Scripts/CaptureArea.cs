@@ -48,7 +48,10 @@ public class CaptureArea : NetworkBehaviour
         }
     }
 
-    private void OnTriggerEnter(Collider other)
+    private void OnTriggerEnter(Collider other) { TryCapture(other); }
+    private void OnTriggerStay(Collider other) { TryCapture(other); }
+
+    private void TryCapture(Collider other)
     {
         // Client physics can overlap a newly spawned enemy before its server controller's
         // Start disables that component. Only the server may stop AI or capture a candle area.
@@ -56,7 +59,9 @@ public class CaptureArea : NetworkBehaviour
         if (other.CompareTag("EnemyLegs"))
         {
             EnemyControllerServer enemy = other.GetComponentInParent<EnemyControllerServer>();
-            if (enemy.isActiveAndEnabled && !enemy.IsTriggerLocked && !enemy._isDying)
+            if (enemy != null && enemy.isActiveAndEnabled && !enemy.IsTriggerLocked && !enemy._isDying
+                && !_enemiesInside.Contains(enemy)
+                && enemy.CurrentState == EnemyControllerServer.EnemyState.Running)
             {
                 enemy.CurrentState = EnemyControllerServer.EnemyState.Blocked;
                 enemy.TurnOnWalking(false);
@@ -78,14 +83,17 @@ public class CaptureArea : NetworkBehaviour
         if (other.CompareTag("EnemyLegs"))
         {
             EnemyControllerServer enemy = other.GetComponentInParent<EnemyControllerServer>();
-            if (enemy.isActiveAndEnabled && _enemiesInside.Remove(enemy))
+            if (enemy != null && _enemiesInside.Remove(enemy))
             {
                 _enemyNum = _enemiesInside.Count;
                 if (_enemyNum <= 0)
                     _capturing = false;
-                enemy.TurnOnWalking(true);
-                enemy.CurrentState = EnemyControllerServer.EnemyState.Running;
-                enemy.SetAnim("running", true);
+                if (enemy.isActiveAndEnabled && !enemy._isDying)
+                {
+                    enemy.TurnOnWalking(true);
+                    enemy.CurrentState = EnemyControllerServer.EnemyState.Running;
+                    enemy.SetAnim("running", true);
+                }
                 //enemy.IsTriggerLocked = false;
             }
         }
