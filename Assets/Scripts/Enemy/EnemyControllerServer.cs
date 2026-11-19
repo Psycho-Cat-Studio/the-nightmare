@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using UnityEngine;
+using UnityEngine.Serialization;
 using Mirror;
 using UnityEngine.AI;
 using System.Collections;
@@ -17,6 +18,13 @@ public class EnemyControllerServer : NetworkBehaviour
     public bool IsWalking { get; set; }
     [SyncVar] private float _currentHealth;
     [SerializeField] private float _maxHealth = 50f;
+    [SerializeField] private float _walkSpeed = 2f;
+    [SerializeField] private float _runSpeed = 3.5f;
+    [SerializeField] private float _deathAnimationDelay = 3.2f;
+    [FormerlySerializedAs("_consumesTrapCharges")]
+    [SerializeField] private bool _affectedByBricks = true;
+    public bool AffectedByBricks => _affectedByBricks;
+    [SerializeField] private GameObject[] _deathHiddenObjects = new GameObject[0];
     private float _screamTimer = 1f;
     public NavMeshAgent Agent { get; set; }
     public PlayerManager _damageDest;
@@ -50,6 +58,12 @@ public class EnemyControllerServer : NetworkBehaviour
     public bool IsTriggerLocked { get; set; }
 
     public bool ShouldScream { get; set; }
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+        _currentHealth = _maxHealth;
+    }
+
     private void Start()
     {
         // Hits and teddy-bear targets refer to enemies by name, so the name must be identical on every
@@ -63,13 +77,12 @@ public class EnemyControllerServer : NetworkBehaviour
             if (randInt == 0) ShouldScream = true;
             _source = GetComponent<AudioSource>();
             IsWalking = true;
-            _currentHealth = _maxHealth;
             _animator = GetComponentInChildren<Animator>();
             
         }
         Agent = GetComponent<NavMeshAgent>();
         //Obstacle = GetComponent<NavMeshObstacle>();
-        Agent.speed = 2f;
+        Agent.speed = _walkSpeed;
         if (isServer)
         {
             _meleeTrigger = GetComponent<BoxCollider>();
@@ -107,7 +120,7 @@ public class EnemyControllerServer : NetworkBehaviour
                     {
                         SetAnim("running", true);
                         _currentState = EnemyState.Running;
-                        SetAgentSpeed(3.5f);
+                        SetAgentSpeed(_runSpeed);
                     }
                 }
                 break;
@@ -130,7 +143,7 @@ public class EnemyControllerServer : NetworkBehaviour
                 {
                     SetAnim("screaming", false);
                     CurrentState = EnemyState.Running;
-                    SetAgentSpeed(3.5f);
+                    SetAgentSpeed(_runSpeed);
                     if (!TryBeginContactFight())
                     {
                         SetAnim("running", true);
@@ -239,7 +252,7 @@ public class EnemyControllerServer : NetworkBehaviour
     IEnumerator Die()
     {
         RpcRemoveEnemy();
-        yield return new WaitForSeconds(3.2f);
+        yield return new WaitForSeconds(_deathAnimationDelay);
         RpcDie();
     }
 
@@ -259,7 +272,8 @@ public class EnemyControllerServer : NetworkBehaviour
     [ClientRpc]
     void RpcDie()
     {
-        transform.GetChild(0).GetChild(0).GetChild(1).gameObject.SetActive(false); // turning off eyes
+        foreach (var hidden in _deathHiddenObjects)
+            if (hidden != null) hidden.SetActive(false);
         GetComponentInChildren<DissolveEnemyBody>().Enabled = true;
     }
 

@@ -42,6 +42,14 @@
 - Crashes when players had different system languages (e.g. Polish and English) are fixed.
 
 ### Gameplay fixes
+- Give Ghost tiers matching glowing eyes; replace their fall with the spawn-style green flash and a 1.2-second dissolve.
+- Strengthen Ghost torso/head hit recoil while preserving arm animation and gameplay movement.
+- Let Ghosts fly over bricks without freezing or consuming them; preserve skeleton trap behavior.
+- Restore reliable Ghost candle contact and retry capture after screams or trap freezes.
+- Add a faster, lower-health Ghost with three room tiers, distinct animation/audio and a 20% server spawn chance.
+- Match grenade and trash-can explosion size to their damage radii; enlarge both effects by another 20% while preserving their shared proportions.
+- Flash rejected placement previews red twice, including server rejection, without spending inventory.
+- Initialize enemy HP before initial network replication and remove skeleton-specific death hierarchy assumptions.
 - Enable weapon friendly fire through correct remote hit-collider layers; keep all player damage disabled in lobby and results screens.
 - Initialize player HP on the server before spawn replication instead of overwriting it during client setup.
 - Preserve the original grenade/trash-can explosion animation and sound while adding pooled playback and world-radius ground rings.

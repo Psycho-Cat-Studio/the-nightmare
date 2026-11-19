@@ -1059,25 +1059,37 @@ PrefabInstance:
       value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
+      propertyPath: spawnPrefabs.Array.size
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
       propertyPath: 'm_Channels.Array.data[0]'
       value: 5
       objectReference: {fileID: 0}
     - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
-      propertyPath: m_SpawnPrefabs.Array.size
-      value: 7
-      objectReference: {fileID: 0}
-    - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
-      propertyPath: 'm_SpawnPrefabs.Array.data[0]'
+      propertyPath: 'spawnPrefabs.Array.data[0]'
       value: 
       objectReference: {fileID: 3875958273512625560, guid: 56109102011c6ad4da9309723ed23078, type: 3}
     - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
-      propertyPath: 'm_SpawnPrefabs.Array.data[5]'
+      propertyPath: 'spawnPrefabs.Array.data[5]'
       value: 
       objectReference: {fileID: 7491229223940276313, guid: a2728d31051a6f64eb4ed8e203ea2b52, type: 3}
     - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
-      propertyPath: 'm_SpawnPrefabs.Array.data[6]'
+      propertyPath: 'spawnPrefabs.Array.data[6]'
       value: 
       objectReference: {fileID: 5180783451867056940, guid: 4069b5a4ee5e3ee42992951fe64c6690, type: 3}
+    - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
+      propertyPath: 'spawnPrefabs.Array.data[7]'
+      value: 
+      objectReference: {fileID: 6513423205020058902, guid: 9e358129297c07a9fb7fe21d56025ead, type: 3}
+    - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
+      propertyPath: 'spawnPrefabs.Array.data[8]'
+      value: 
+      objectReference: {fileID: 627013582406413171, guid: ad50711cef6328de396e32bed9cc9ccf, type: 3}
+    - target: {fileID: 8769869101659370329, guid: 073947f950d4f2fd599365c522c0559e, type: 3}
+      propertyPath: 'spawnPrefabs.Array.data[9]'
+      value: 
+      objectReference: {fileID: 7512792158092108677, guid: e6af1afe3e99bb9c98f8990789a8dead, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

@@ -116,3 +116,6 @@ See [ROADMAP.md](ROADMAP.md). The main ones:
 - Internet play needs port forwarding or a VPN.
 
 Friendly fire, lobby immunity and pooled blast-radius visuals: [FRIENDLY-FIRE-EXPLOSIONS.md](FRIENDLY-FIRE-EXPLOSIONS.md).
+
+Ghost tiers, weighted spawns, explosion proportions and placement rejection feedback are documented in
+[GHOST-AND-COMBAT-POLISH.md](GHOST-AND-COMBAT-POLISH.md).

@@ -5,24 +5,29 @@ public class DissolveEnemyBody : MonoBehaviour {
 
     Material mat;
     private EnemyControllerServer _enemyControllerServer;
+    [SerializeField, Min(0.01f)] private float _duration = 3f;
+    [SerializeField, Min(0f)] private float _despawnDelay;
+    private float _completedAt = -1f;
     private float _dissolveAmount = 0f;
     public bool Enabled { get; set; }
     public float DissolveAmount { get => _dissolveAmount; }
 
-    private void Start() {
+    private void Awake() {
         mat = GetComponent<Renderer>().material;
-        Enabled = false;
         _enemyControllerServer = GetComponentInParent<EnemyControllerServer>();
     }
 
     private void Update() {
-        if (!Enabled || _dissolveAmount >= 1f) return;
-
-        _dissolveAmount = Mathf.Min(1f, _dissolveAmount + Time.deltaTime / 3);
-        mat.SetFloat("_DissolveAmount", DissolveAmount);
-        // The enemy is a networked object: the server despawns it for everyone. Clients just stay
-        // fully dissolved until the destroy message arrives instead of destroying their copy early.
-        if (_dissolveAmount >= 1f && NetworkServer.active)
+        if (!Enabled) return;
+        if (_dissolveAmount < 1f)
+        {
+            _dissolveAmount = Mathf.Min(1f, _dissolveAmount + Time.deltaTime / Mathf.Max(0.01f, _duration));
+            mat.SetFloat("_DissolveAmount", DissolveAmount);
+            if (_dissolveAmount >= 1f) _completedAt = Time.time;
+        }
+        // Keep an invisible Ghost briefly so its existing spatial death voice can finish.
+        // Only the server despawns the network object, including after this cosmetic delay.
+        if (_completedAt >= 0 && Time.time >= _completedAt + _despawnDelay && NetworkServer.active)
             NetworkServer.Destroy(_enemyControllerServer.gameObject);
     }
 }

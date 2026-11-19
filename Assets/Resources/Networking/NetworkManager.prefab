@@ -24,12 +24,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 81765817}
+  serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -4.7018433, y: 0, z: 5.82}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1250475252818553949}
-  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &81765819
 MonoBehaviour:
@@ -67,12 +68,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 749330304}
+  serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1.5, y: 0, z: -7.8}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1250475252818553949}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &749330306
 MonoBehaviour:
@@ -110,12 +112,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1933175176}
+  serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 7.4, y: 0, z: 4}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1250475252818553949}
-  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1933175178
 MonoBehaviour:
@@ -154,15 +157,16 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 210125983785559080}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 749330305}
   - {fileID: 81765818}
   - {fileID: 1933175177}
   m_Father: {fileID: 0}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &8769869101659370329
 MonoBehaviour:
@@ -176,23 +180,49 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10e66068d9290094b9fbe6d56b4c4154, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  networkAddress: localhost
   dontDestroyOnLoad: 1
   runInBackground: 1
-  playerPrefab: {fileID: 2361017057787199711, guid: c3ce8b8bd4727824c98c24dd0411c3a7,
-    type: 3}
-  autoCreatePlayer: 1
-  playerSpawnMethod: 1
+  headlessStartMode: 0
+  editorAutoStart: 0
+  sendRate: 60
+  unreliableBaselineRate: 1
+  unreliableRedundancy: 0
+  transport: {fileID: 6921317458879603172}
+  networkAddress: localhost
+  maxConnections: 4
+  disconnectInactiveConnections: 0
+  disconnectInactiveTimeout: 60
+  exceptionsDisconnect: 1
+  authenticator: {fileID: 0}
   offlineScene: LobbyTests
   onlineScene: ExtremeHomeMakeover
+  offlineSceneLoadDelay: 0
+  playerPrefab: {fileID: 2361017057787199711, guid: c3ce8b8bd4727824c98c24dd0411c3a7, type: 3}
+  autoCreatePlayer: 1
+  playerSpawnMethod: 1
   spawnPrefabs:
   - {fileID: 6513423205020058902, guid: 53776c2a44fce1c488312695240e7217, type: 3}
   - {fileID: 6627066607432650789, guid: ae431d7febde62d47bfa4527a9c5ed97, type: 3}
   - {fileID: 3905061388165123986, guid: 64529fe2fad73d485b75f22ac03f1ff2, type: 3}
   - {fileID: 940214644287376405, guid: fff42774a33b7704f8d83ea810557ad6, type: 3}
   - {fileID: 3012633921025596544, guid: 4e88b0833fc1f794780665ba09ba3620, type: 3}
-  maxConnections: 4
-  transport: {fileID: 6921317458879603172}
+  - {fileID: 6513423205020058902, guid: 9e358129297c07a9fb7fe21d56025ead, type: 3}
+  - {fileID: 627013582406413171, guid: ad50711cef6328de396e32bed9cc9ccf, type: 3}
+  - {fileID: 7512792158092108677, guid: e6af1afe3e99bb9c98f8990789a8dead, type: 3}
+  snapshotSettings:
+    bufferTimeMultiplier: 2
+    bufferLimit: 32
+    catchupNegativeThreshold: -1
+    catchupPositiveThreshold: 1
+    catchupSpeed: 0.019999999552965164
+    slowdownSpeed: 0.03999999910593033
+    driftEmaDuration: 1
+    dynamicAdjustment: 1
+    dynamicAdjustmentTolerance: 1
+    deliveryTimeEmaDuration: 2
+  evaluationMethod: 0
+  evaluationInterval: 3
+  timeInterpolationGui: 0
 --- !u!114 &6921317458879603172
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -206,3 +236,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   port: 7777
+  DualMode: 1
+  NoDelay: 1
+  Interval: 10
+  Timeout: 10000
+  RecvBufferSize: 7361536
+  SendBufferSize: 7361536
+  FastResend: 2
+  ReceiveWindowSize: 4096
+  SendWindowSize: 4096
+  MaxRetransmit: 40
+  MaximizeSocketBuffers: 1
+  ReliableMaxMessageSize: 297433
+  UnreliableMaxMessageSize: 1194
+  debugLog: 0
+  statisticsGUI: 0
+  statisticsLog: 0

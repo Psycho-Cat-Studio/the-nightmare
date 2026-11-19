@@ -15,6 +15,7 @@ public class EnemyHitParticles : MonoBehaviour
             _instance = go.AddComponent<EnemyHitParticles>();
             _instance.Initialize(material);
         }
+        if (!_instance._particles.isPlaying) _instance._particles.Play();
         _instance.Burst(point + normal * 0.01f, normal);
     }
 

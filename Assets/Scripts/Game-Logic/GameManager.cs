@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 using Mirror;
 using System.Collections;
@@ -65,6 +65,9 @@ public class GameManager : NetworkBehaviour
     public static List<SpriteRenderer> SpriteRenderer { get { return _spriteRenderes; } }
     private GameObject _enemyPrefab;
     [SerializeField] private GameObject[] _enemiesPrefabs;
+    [SerializeField] private GameObject[] _ghostPrefabs = new GameObject[3];
+    [SerializeField, Range(0f, 1f)] private float _ghostSpawnChance = 0.2f;
+    private int _enemyTier;
     [SerializeField] private MatchSettings _matchSettings;
     [SerializeField] private GameObject[] _weapons;
     [SerializeField] private int _waves;
@@ -105,6 +108,7 @@ public class GameManager : NetworkBehaviour
                     StartCoroutine(PickUpPrepareFirst());
                     break;
                 case MatchState.Room1Fight:
+                    _enemyTier = 0;
                     _enemyPrefab = _enemiesPrefabs[0];
                     _arrow.gameObject.SetActive(false);
                     StartHordeAttack();
@@ -129,6 +133,7 @@ public class GameManager : NetworkBehaviour
                 case MatchState.Room2Fight:
                     _nameOfPreviousSpawn = null;
                     _arrow.gameObject.SetActive(false);
+                    _enemyTier = 1;
                     _enemyPrefab = _enemiesPrefabs[1];
                     StartHordeAttack();
                     ClockManager.time = _timers[1];
@@ -151,6 +156,7 @@ public class GameManager : NetworkBehaviour
                 case MatchState.Room3Fight:
                     _nameOfPreviousSpawn = null;
                     _arrow.gameObject.SetActive(false);
+                    _enemyTier = 2;
                     _enemyPrefab = _enemiesPrefabs[2];
                     StartHordeAttack();
                     ClockManager.time = _timers[2];
@@ -461,13 +467,21 @@ public class GameManager : NetworkBehaviour
 
             Transform spawnPoint = PickSpawnPoint();
             if (spawnPoint == null) continue;
-            GameObject enemy = Instantiate(_enemyPrefab, spawnPoint.position, spawnPoint.rotation);
+            GameObject enemy = Instantiate(PickEnemyPrefab(), spawnPoint.position, spawnPoint.rotation);
             var target = spawnPoint.GetComponent<EnemySpawnTarget>();
             if (target != null) enemy.GetComponent<EnemyControllerServer>().SetInitialCaptureArea(target.InitialArea);
             NetworkServer.Spawn(enemy);
             _enemiesCounter++;
             _spawnedEnemiesCounter++;
         }
+    }
+
+    // Called by the spawning server once per enemy. The room selects strength, not frequency.
+    private GameObject PickEnemyPrefab()
+    {
+        if (_enemyTier < _ghostPrefabs.Length && _ghostPrefabs[_enemyTier] != null
+            && Random.value < _ghostSpawnChance) return _ghostPrefabs[_enemyTier];
+        return _enemyPrefab;
     }
 
     // Random spawn point, avoiding the previous one when there is a choice. The old version

@@ -48,7 +48,9 @@ visual review. All eight authored Particle Systems, subemitters, materials, root
 and AudioSource settings are preserved. Grenades use `boom`; trash cans use `explosion`, both
 at their original volume of 1. Native activation starts the original autoplay hierarchy; the
 controller no longer overrides emissions, gradients, particle counts or dust animation.
-Effects retain the original three-second lifetime and source-specific rotation.
+Effects retain the original three-second lifetime and source-specific rotation. Visual scale now
+follows the shared radius ratio described in [Ghost and combat polish](GHOST-AND-COMBAT-POLISH.md):
+0.45 for grenades and 0.191761 for trash cans. The floor ring remains independent.
 
 The previous replacement's 46-particle budget no longer applies. The restored effect needs
 fresh profiling on target phones; the pool bounds instance count, not GPU overdraw.
@@ -69,7 +71,8 @@ limit, then the effect deactivates. Scene unloading releases the pool.
 ## Restoration verification
 
 - Compared both restored prefabs against the pre-feedback backups: original particle, audio,
-  transform and material-reference blocks are unchanged; only the ring controller was added.
+  transform and material-reference blocks were unchanged at restoration; only the ring controller was added.
+  Subsequent radius-based runtime scaling is documented above.
 - Editor comparison against the original autoplay hierarchy matched particle counts at the
   sampled frame, original scale/audio and ring world radii (3.52 m / 1.5 m)
   (`Logs/explosion-original-comparison.json`).

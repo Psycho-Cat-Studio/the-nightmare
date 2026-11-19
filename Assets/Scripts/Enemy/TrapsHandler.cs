@@ -9,14 +9,17 @@ public class TrapsHandler : MonoBehaviour
     private EnemyControllerServer _enemyController;
 
 
-    private void Start()
+    private void Awake()
     {
         _enemyController = GetComponentInParent<EnemyControllerServer>();
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Snares") && _enemyController.enabled && _enemyController.CurrentState != EnemyControllerServer.EnemyState.Blocked)
+        if (other.CompareTag("Snares") && _enemyController != null && _enemyController.isServer
+            && _enemyController.AffectedByBricks
+            && _enemyController.isActiveAndEnabled && !_enemyController._isDying
+            && _enemyController.CurrentState != EnemyControllerServer.EnemyState.Blocked)
         {
             _enemyController.TurnOnWalking(false);
             _enemyController.CurrentState = EnemyControllerServer.EnemyState.Blocked;

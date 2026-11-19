@@ -17,15 +17,20 @@ public class EnemyControllerClient : NetworkBehaviour
     private bool _simulateLocally;
     public List<AudioClip> clips = new List<AudioClip>();
 
+    void Awake()
+    {
+        // Spawn RPCs can arrive before Start on a newly instantiated client object.
+        _source = GetComponent<AudioSource>();
+        Agent = GetComponent<NavMeshAgent>();
+        _animator = GetComponentInChildren<Animator>();
+    }
+
     void Start()
     {
         if (isServer) enabled = false;
         else
         {
-            _source = GetComponent<AudioSource>();
-            Agent = GetComponent<NavMeshAgent>();
             IsWalking = true;
-            _animator = GetComponentInChildren<Animator>();
             _simulateLocally = GetComponent<NetworkTransformBase>() == null;
             if (!_simulateLocally && Agent != null) Agent.enabled = false;
         }
