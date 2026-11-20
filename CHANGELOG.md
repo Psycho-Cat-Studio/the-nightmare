@@ -42,6 +42,8 @@
 - Crashes when players had different system languages (e.g. Polish and English) are fixed.
 
 ### Gameplay fixes
+- Make local look and sprint responsive without changing movement speeds; smooth ADS and add subtle frame-rate-independent weapon sway/kick.
+- Keep a gentle red edge warning below 30% HP, strongest at 10%, alongside the existing damage flash.
 - Give Ghost tiers matching glowing eyes; replace their fall with the spawn-style green flash and a 1.2-second dissolve.
 - Strengthen Ghost torso/head hit recoil while preserving arm animation and gameplay movement.
 - Let Ghosts fly over bricks without freezing or consuming them; preserve skeleton trap behavior.

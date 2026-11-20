@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -12,6 +12,8 @@ public class PlayerShoot : NetworkBehaviour {
     public PlayerEquipment Equipment { get; set; }
 
     private PlayerController _playerController;
+    private PlayerMotor _motor;
+    private WeaponPresentation _presentation;
     public AudioSource source { get; set; }
     public AudioClip shot;
     [SerializeField] private AudioClip _rifleShot;
@@ -78,6 +80,14 @@ public class PlayerShoot : NetworkBehaviour {
         else
             _playerAnimator = transform.GetChild(0).GetChild(1).GetComponent<Animator>();
         _playerController = GetComponent<PlayerController>();
+        _motor = GetComponent<PlayerMotor>();
+        if (isLocalPlayer)
+        {
+            var holder = Cam.transform.GetChild(0);
+            _presentation = holder.GetComponent<WeaponPresentation>();
+            if (_presentation == null) _presentation = holder.gameObject.AddComponent<WeaponPresentation>();
+            _presentation.Initialize(_playerController, _motor, Equipment);
+        }
 
         if (isLocalPlayer)
             _grenadesTM = GameObject.Find("Grenades").GetComponent<TextMeshProUGUI>();
@@ -90,10 +100,18 @@ public class PlayerShoot : NetworkBehaviour {
 
 
     void Update() {
-        if (!_initialized || !isLocalPlayer || SettingsMenu.IsOpen) return;
+        if (!_initialized || !isLocalPlayer) return;
+        if (!_playerController.CanControl)
+        {
+            _shootingDone = Input.GetButton("Fire1");
+            _grenadeTimer = 0f;
+            weaponAnimator = Equipment.getActiveWeapon() != null ? Equipment.getActiveWeapon().GetComponent<Animator>() : null;
+            if (weaponAnimator != null) weaponAnimator.SetBool(IsAiming, false);
+            return;
+        }
         if (ButtonsControll.screensOver && !WinLoseScreens.winLoseActive && Equipment.getActiveWeapon() != null)
         { 
-            currentRecoil = Equipment.getActiveWeapon().Recoil;
+            currentRecoil = Equipment.getActiveWeapon().Recoil * (_playerController.IsAiming ? 0.35f : 1f);
             normalFOV = GameSettings.FieldOfView;
             zoomFOV = normalFOV - GameSettings.AIM_FOV_REDUCTION;
 
@@ -102,7 +120,7 @@ public class PlayerShoot : NetworkBehaviour {
             if (isLocalPlayer)
                 _grenadesTM.text = _grenades.ToString();
             // Tuned for the old fixed 50 FPS cap; scaled by frame time so it decays the same at any frame rate.
-            if (crossAccuracy > 1.02) crossAccuracy -= (crossAccuracy * 0.05f + 0.02f) * Time.deltaTime * 50f;
+            if (crossAccuracy > 1.02f) crossAccuracy = (crossAccuracy + 0.4f) * Mathf.Pow(0.95f, Time.deltaTime * 50f) - 0.4f;
             if (crossAccuracy < 1.02f) crossAccuracy = 1f;
             Cross.transform.GetChild(0).transform.localScale = new Vector3(crossAccuracy, crossAccuracy, crossAccuracy);
 
@@ -181,14 +199,14 @@ public class PlayerShoot : NetworkBehaviour {
                     Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsAiming, true);
                 }
 
-                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, zoomFOV, 0.6f);
+                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, zoomFOV, 1f - Mathf.Exp(-16.643f * Time.deltaTime));
                 Cross.gameObject.SetActive(false);
                 _playerController.SensitivityScale = _playerController.ZoomSensitivity;
             }
             else {
                 currentRecoil = Equipment.getActiveWeapon().Recoil;
                 if (isLocalPlayer) Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsAiming, false);
-                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, normalFOV, 0.6f);
+                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, normalFOV, 1f - Mathf.Exp(-16.643f * Time.deltaTime));
                 Cross.gameObject.SetActive(true);
                 _playerController.SensitivityScale = _playerController.NonZoomSensitivity;
             }
@@ -233,6 +251,8 @@ public class PlayerShoot : NetworkBehaviour {
     private void OnDisable() {
         // Death or a blocked weapon disables this component mid-swap; don't stay locked afterwards.
         IsSwitchingWeapon = false;
+        _grenadeTimer = 0f;
+        _shootingDone = false;
     }
     
     IEnumerator Reload() {
@@ -251,7 +271,7 @@ public class PlayerShoot : NetworkBehaviour {
     IEnumerator TripleShot() {
         Weapon weapon = Equipment.getActiveWeapon();
         for (int i = 0; i < 3; i++) {
-            if (Equipment.getActiveWeapon() != weapon || IsSwitchingWeapon || weapon.State == Weapon.WeaponState.reloading)
+            if (!_playerController.CanControl || !isActiveAndEnabled || Equipment.getActiveWeapon() != weapon || IsSwitchingWeapon || weapon.State == Weapon.WeaponState.reloading)
                 yield break;
             PerformWeaponFire(BURST_RECOIL_SCALE);
             yield return new WaitForSeconds(weapon.FireRate * 0.8f);
@@ -260,7 +280,6 @@ public class PlayerShoot : NetworkBehaviour {
 
 
     void Shoot() {
-        crossAccuracy += 2f - crossAccuracy * 0.5f;
         Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsSprinting, false);
 
 
@@ -279,14 +298,21 @@ public class PlayerShoot : NetworkBehaviour {
 
 
     void PerformWeaponFire(float recoilScale = 1f) {
+        if (!_playerController.CanControl || IsSwitchingWeapon || IsBuildingOnFly) return;
         if (Equipment.getActiveWeapon().CurrentMagAmmo >= 1) {
+            // Sample the current input/view before this shot adds its new cosmetic recoil.
+            _motor.ApplyView();
+            Vector3 rayOrigin = Cam.transform.position;
+            Vector3 rayDirection = Cam.transform.forward;
+            crossAccuracy += 2f - crossAccuracy * 0.5f;
+            _presentation?.Shot(recoilScale * (_playerController.IsAiming ? 0.35f : 1f));
             Equipment.PlayerShooting();
             playSootSound();
             Equipment.getActiveWeapon().shoot();
-            gameObject.GetComponent<PlayerMotor>().IncreaseRecoil(currentRecoil * recoilScale);
+            _motor.IncreaseRecoil(currentRecoil * recoilScale);
             CmdPlayerShooting();
             RaycastHit hit;
-            if (Physics.Raycast(Cam.transform.position, Cam.transform.forward, out hit,
+            if (Physics.Raycast(rayOrigin, rayDirection, out hit,
                 Equipment.getActiveWeapon().Range,
                 _mask, QueryTriggerInteraction.Ignore)) {
                 bool enemyHit = hit.collider.CompareTag("EnemyHead") || hit.collider.CompareTag("EnemyBody") || hit.collider.CompareTag("EnemyLegs");
