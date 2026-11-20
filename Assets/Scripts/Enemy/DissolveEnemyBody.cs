@@ -1,10 +1,11 @@
 using UnityEngine;
-using Mirror;
 
+/// <summary>Animates local material dissolution and requests final entity removal only on authority.</summary>
 public class DissolveEnemyBody : MonoBehaviour {
 
-    Material mat;
-    private EnemyControllerServer _enemyControllerServer;
+    private static readonly int DissolveAmountProperty = Shader.PropertyToID("_DissolveAmount");
+    private Material mat;
+    private IEntityLifetime _lifetime;
     [SerializeField, Min(0.01f)] private float _duration = 3f;
     [SerializeField, Min(0f)] private float _despawnDelay;
     private float _completedAt = -1f;
@@ -14,7 +15,7 @@ public class DissolveEnemyBody : MonoBehaviour {
 
     private void Awake() {
         mat = GetComponent<Renderer>().material;
-        _enemyControllerServer = GetComponentInParent<EnemyControllerServer>();
+        _lifetime = GetComponentInParent<IEntityLifetime>();
     }
 
     private void Update() {
@@ -22,12 +23,12 @@ public class DissolveEnemyBody : MonoBehaviour {
         if (_dissolveAmount < 1f)
         {
             _dissolveAmount = Mathf.Min(1f, _dissolveAmount + Time.deltaTime / Mathf.Max(0.01f, _duration));
-            mat.SetFloat("_DissolveAmount", DissolveAmount);
+            mat.SetFloat(DissolveAmountProperty, DissolveAmount);
             if (_dissolveAmount >= 1f) _completedAt = Time.time;
         }
         // Keep an invisible Ghost briefly so its existing spatial death voice can finish.
         // Only the server despawns the network object, including after this cosmetic delay.
-        if (_completedAt >= 0 && Time.time >= _completedAt + _despawnDelay && NetworkServer.active)
-            NetworkServer.Destroy(_enemyControllerServer.gameObject);
+        if (_completedAt >= 0 && Time.time >= _completedAt + _despawnDelay && _lifetime != null && _lifetime.IsAuthority)
+            _lifetime.Despawn();
     }
 }

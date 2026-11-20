@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9f01d67f8c2c9eab93240e40998bf20, type: 3}
+  m_Name: TeddyBear
+  m_EditorClassIdentifier: Nightmare.Configuration::Nightmare.Configuration.PlaceableDefinition
+  Id: teddybear
+  Prefab: {fileID: 940214644287376405, guid: fff42774a33b7704f8d83ea810557ad6, type: 3}
+  PreviewPrefab: {fileID: 940214644287376405, guid: 9373412a47bfab448817663cededf57b, type: 3}
+  InventoryLimit: 3

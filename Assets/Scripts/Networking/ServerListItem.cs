@@ -1,15 +1,16 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>Binds one discovered session to its lobby row and join action.</summary>
 public class ServerListItem : MonoBehaviour
 {
-    public delegate void JoinRoomDelegate(LanDiscovery.LanGame game);
+    public delegate void JoinRoomDelegate(Nightmare.Core.Ports.SessionListing game);
     private JoinRoomDelegate _joinRoomCallback;
     [SerializeField] private TextMeshProUGUI _roomNameText;
-    private LanDiscovery.LanGame _game;
+    private Nightmare.Core.Ports.SessionListing _game;
 
-    public void Setup(LanDiscovery.LanGame game, JoinRoomDelegate joinRoomCallback)
+    public void Setup(Nightmare.Core.Ports.SessionListing game, JoinRoomDelegate joinRoomCallback)
     {
         _game = game;
         _joinRoomCallback = joinRoomCallback;

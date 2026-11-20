@@ -1,5 +1,6 @@
-﻿using UnityEngine;
+using UnityEngine;
 
+/// <summary>Keeps crosshair geometry legible across screen sizes while applying weapon spread.</summary>
 public class AimScaler : MonoBehaviour
 {
     private Transform _parent;

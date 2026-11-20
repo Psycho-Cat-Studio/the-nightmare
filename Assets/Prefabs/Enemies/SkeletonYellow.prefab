@@ -120,6 +120,10 @@ PrefabInstance:
       propertyPath: m_AssetId.i15
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3969500987735794099, guid: 53776c2a44fce1c488312695240e7217, type: 3}
+      propertyPath: _definition
+      value: 
+      objectReference: {fileID: 11400000, guid: da60c10efb8ded46ab6d7f70eca2d6a8, type: 2}
     - target: {fileID: 6513423205020058902, guid: 53776c2a44fce1c488312695240e7217, type: 3}
       propertyPath: m_Name
       value: SkeletonYellow

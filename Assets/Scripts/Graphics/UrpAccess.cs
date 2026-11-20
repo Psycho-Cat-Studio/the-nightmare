@@ -3,6 +3,7 @@ using System.Reflection;
 using UnityEngine;
 
 // Keep the lightweight compile harness independent of URP's package-only assemblies.
+/// <summary>Bridges URP settings through reflection without introducing package-only dependencies into the compile harness.</summary>
 public static class UrpAccess
 {
     const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;

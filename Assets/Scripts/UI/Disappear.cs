@@ -1,7 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 
+/// <summary>Removes a transient object after its authored lifetime.</summary>
 public class Disappear : MonoBehaviour
 {
     public float time;

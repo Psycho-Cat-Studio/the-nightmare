@@ -2,6 +2,40 @@
 
 ## Unreleased (`ai` branch)
 
+### Ghost levitation and explosion chains
+- Add subtle time/identity-driven levitation above the existing Ghost animations, inherited by all variants and frozen during death/retirement.
+- Preserve navigation, body/leg colliders, existing poses and gameplay randomness; add motion and animation/hit regression coverage.
+- Verify existing barrel/grenade chain reactions with physical PlayMode and two-peer regression scenarios, including out-of-range barrels and duplicate suppression.
+
+### Explosion sizing and candle build grid
+- Set grenade and trash-can default blast radii to 2.5 m, retaining independent prefab tuning and radius-driven effects.
+- Remove nine placement cells and their visuals from the second candle area in room 2; verify the other five areas.
+
+### Match ownership and stage completion
+- Keep GameManager as a composition root; separate session rules, world registries, wave spawning and player coordination.
+- Remove the numbered-room state map, implicit campaign fallbacks and static game registries; inject instance dependencies at scene/spawn boundaries.
+- Freeze inactive candle areas and dissolve surviving enemies after successful defense, disabling their damage and colliders immediately on authority.
+- Resolve candle/player loss and timer expiry in one place, preserving loss priority at the deadline.
+- Give chairs/tables a persistent readable brown material and include embedded model materials in URP auditing.
+
+### Code readability and API documentation
+- Simplify legacy grid authoring, share lookup identifiers and document owned classes with XML summaries.
+- Remove verified dead components, unused members/imports and commented-out code; guard class documentation and source hygiene in CI.
+- Cover generator geometry and fix skipped child cleanup and optional-chest hierarchy binding.
+- Split shooting, placement, interactions, bootstrap, validation and graphics diagnostics into focused operations while retaining execution order.
+- Share hit/grenade rules and persistent identifiers; author existing weapon handling and spawn cadence as configuration.
+- Add selective XML documentation for core rules and public gameplay contracts, with XML validation in compile checks.
+- Use weapon-definition swap poses and render mapped inventory HUD slots beyond the original three.
+
+### Modular architecture and regression coverage
+- Extract engine-free combat/match rules, content definitions, player runtime and transport contracts using plain Unity/C#.
+- Isolate Mirror Commands/RPCs in adapters; define campaigns through reusable stages and preserve existing balance.
+- Add authored player/scene bindings, stable placement/capture IDs, catalog items and chest grants.
+- Fix walking-enemy melee entry, reload cancellation/completion ownership, duplicate readiness and timer/candle loss ordering.
+- Release occupied placement cells on the server before consumed bricks/bears/barrels disappear, rather than depending on destruction-time RPC delivery.
+- Add EditMode/PlayMode regression suites, a two-process network harness, content/module validation and a regression CI workflow.
+- Document architecture, extension points, code-quality decisions and remaining compatibility boundaries.
+
 ### Graphics settings
 - Make candle darkness build earlier while preserving its maximum; keep all crosshair bars visible at low resolutions.
 - Darken the existing distance fog with fading candles; preserve full-candle lighting and reset it between rooms without adding rendering passes.

@@ -1,6 +1,7 @@
 using UnityEngine;
 
 // One scene-owned emitter for every enemy hit; no network objects or per-shot allocations.
+/// <summary>Shares a scene-local particle emitter for confirmed enemy bullet impacts.</summary>
 public class EnemyHitParticles : MonoBehaviour
 {
     static EnemyHitParticles _instance;

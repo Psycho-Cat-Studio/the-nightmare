@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3447686099146004144}
-  - component: {fileID: 5120747882340330495}
   m_Layer: 0
   m_Name: Rooms
   m_TagString: Untagged
@@ -24,28 +23,17 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3447686099146004145}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 752077262768741896}
   - {fileID: 6666786415443186868}
   - {fileID: 7578380191388823050}
   m_Father: {fileID: 0}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &5120747882340330495
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3447686099146004145}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3a1501f71a5bb744a9ce744d9296e7bb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &4330161592248013404
 GameObject:
   m_ObjectHideFlags: 0
@@ -70,12 +58,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4330161592248013404}
+  serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -23, y: 3, z: 18}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 3447686099146004144}
-  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &5916350013256702352
 MonoBehaviour:
@@ -93,8 +82,11 @@ MonoBehaviour:
   _height: 16
   _areas: 2
   _enemySpawnPointsCounter: 3
-  roomCaptured: 0
   _hasChest: 1
+  _gridRoot: {fileID: 0}
+  _captureRoot: {fileID: 0}
+  _spawnRoot: {fileID: 0}
+  _renderRoot: {fileID: 0}
 --- !u!1 &5031685722654212287
 GameObject:
   m_ObjectHideFlags: 0
@@ -119,12 +111,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5031685722654212287}
+  serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 1, y: 3, z: 3}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 3447686099146004144}
-  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &5893225790588101468
 MonoBehaviour:
@@ -142,8 +135,11 @@ MonoBehaviour:
   _height: 16
   _areas: 1
   _enemySpawnPointsCounter: 2
-  roomCaptured: 0
   _hasChest: 1
+  _gridRoot: {fileID: 0}
+  _captureRoot: {fileID: 0}
+  _spawnRoot: {fileID: 0}
+  _renderRoot: {fileID: 0}
 --- !u!1 &8649748113464519917
 GameObject:
   m_ObjectHideFlags: 0
@@ -168,12 +164,13 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8649748113464519917}
+  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -4, y: 0, z: 4}
   m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 3447686099146004144}
-  m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &8392237192391168980
 MonoBehaviour:
@@ -191,5 +188,8 @@ MonoBehaviour:
   _height: 23
   _areas: 2
   _enemySpawnPointsCounter: 5
-  roomCaptured: 0
   _hasChest: 0
+  _gridRoot: {fileID: 0}
+  _captureRoot: {fileID: 0}
+  _spawnRoot: {fileID: 0}
+  _renderRoot: {fileID: 0}

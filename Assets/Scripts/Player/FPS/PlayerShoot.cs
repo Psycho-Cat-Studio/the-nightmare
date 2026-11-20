@@ -1,16 +1,24 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using Mirror;
-using UnityEngine.AI;
+using Nightmare.Core.Combat;
+using Nightmare.Configuration;
 
-public class PlayerShoot : NetworkBehaviour {
+/// <summary>Coordinates local weapon input, operation presentation and requests to authoritative combat adapters.</summary>
+public class PlayerShoot : MonoBehaviour, IMatchParticipant
+{
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     public Camera Cam { get; set; }
 
     public PlayerEquipment Equipment { get; set; }
 
+    private IPlayerCombatRequests _requests;
+    public void InitializeCombat(IPlayerCombatRequests requests) { _requests = requests; }
+    public GameObject GrenadePrefab => _grenadePrefab;
+    public bool isLocalPlayer => _playerController != null && _playerController.isLocalPlayer;
     private PlayerController _playerController;
     private PlayerMotor _motor;
     private WeaponPresentation _presentation;
@@ -24,15 +32,12 @@ public class PlayerShoot : NetworkBehaviour {
     public AudioClip pistol;
     public AudioClip rifle;
     public AudioClip nono;
-  
 
     public GameObject Cross;
 
     [SerializeField] private LayerMask _mask;
     private bool _shootingDone = false;
     private float crossAccuracy = 1;
-    private float normalFOV;
-    private float zoomFOV;
     [SerializeField] private GameObject _grenadePrefab;
     private float _grenadeTimer = 0f;
     public int _maxGrenades = 3;
@@ -40,57 +45,51 @@ public class PlayerShoot : NetworkBehaviour {
 
     public TextMeshProUGUI _grenadesTM;
 
-
+    /// <summary>Whether FPS placement preview is active; this does not change the match to overhead building mode.</summary>
     public bool IsBuildingOnFly { get; set; }
-    // True while the hide/show animation of a weapon swap plays; the weapon must not fire meanwhile.
+    /// <summary>Whether the hide/show swap operation is in progress and firing must remain blocked.</summary>
     public bool IsSwitchingWeapon { get; private set; }
     private const float BURST_RECOIL_SCALE = 0.5f;
-    // Headshots deal 3x; anything above this is rejected by the server.
-    private const float DAMAGE_MULTIPLIER_LIMIT = 3f;
+    /// <summary>Accepted-placement latch cleared when releasing fire exits FPS placement mode.</summary>
     public bool WasBuilt { get; set; }
-    private Animator weaponAnimator;
-    private static readonly int IsAiming = Animator.StringToHash("isAiming");
-    private static readonly int IsReloading = Animator.StringToHash("isReloading");
-    private static readonly int IsSprinting = Animator.StringToHash("isSprinting");
-    private static readonly int IsHidden = Animator.StringToHash("isHidden");
+    [SerializeField] private WeaponHandlingSettings _handling = new WeaponHandlingSettings();
+    private const float ScrollThreshold = 0.01f;
+    private const float BurstIntervalScale = 0.8f;
+    private const int BurstShotCount = 3;
     private float currentRecoil;
     public float changeWeaponCooldown = 0;
-    private Weapon activeWeapon = null;
+    private Weapon _reloadingWeapon;
+    private GameObject _swapFrom, _swapTo;
     private bool _initialized;
     private Animator _playerAnimator;
-    
 
-
-    // Start is called before the first frame update
     IEnumerator Start() {
+        _playerController = GetComponent<PlayerController>();
         _grenades = 0;
         source = GetComponent<AudioSource>();
         // Network-spawned players do not guarantee that PlayerSetup.Start has equipped
         // the weapon yet. Wait for that dependency instead of relying on script order.
         while (Equipment == null || Equipment.Weapon1 == null) yield return null;
-        activeWeapon = Equipment.Weapon1;
+        var activeWeapon = Equipment.Weapon1;
         if (Cam == null) enabled = false;
         else {
-            Cross = GameObject.Find("cross");
+            Cross = _game.SceneBindings.Crosshair;
             IsBuildingOnFly = false;
         }
 
-        if(transform.GetChild(0).GetChild(0).gameObject.activeSelf)
-            _playerAnimator = transform.GetChild(0).GetChild(0).GetComponent<Animator>();
-        else
-            _playerAnimator = transform.GetChild(0).GetChild(1).GetComponent<Animator>();
+        _playerAnimator = GetComponent<PlayerRigBindings>().ActiveAnimator;
         _playerController = GetComponent<PlayerController>();
         _motor = GetComponent<PlayerMotor>();
         if (isLocalPlayer)
         {
-            var holder = Cam.transform.GetChild(0);
+            var holder = GetComponent<PlayerRigBindings>().WeaponHolder;
             _presentation = holder.GetComponent<WeaponPresentation>();
             if (_presentation == null) _presentation = holder.gameObject.AddComponent<WeaponPresentation>();
             _presentation.Initialize(_playerController, _motor, Equipment);
         }
 
         if (isLocalPlayer)
-            _grenadesTM = GameObject.Find("Grenades").GetComponent<TextMeshProUGUI>();
+            _grenadesTM = _game.SceneBindings.Grenades;
 
         currentRecoil = activeWeapon.Recoil;
 
@@ -98,171 +97,204 @@ public class PlayerShoot : NetworkBehaviour {
         _initialized = true;
     }
 
-
-    void Update() {
+    void Update()
+    {
         if (!_initialized || !isLocalPlayer) return;
         if (!_playerController.CanControl)
         {
-            _shootingDone = Input.GetButton("Fire1");
-            _grenadeTimer = 0f;
-            weaponAnimator = Equipment.getActiveWeapon() != null ? Equipment.getActiveWeapon().GetComponent<Animator>() : null;
-            if (weaponAnimator != null) weaponAnimator.SetBool(IsAiming, false);
+            SuspendInput();
             return;
         }
-        if (ButtonsControll.screensOver && !WinLoseScreens.winLoseActive && Equipment.getActiveWeapon() != null)
-        { 
-            currentRecoil = Equipment.getActiveWeapon().Recoil * (_playerController.IsAiming ? 0.35f : 1f);
-            normalFOV = GameSettings.FieldOfView;
-            zoomFOV = normalFOV - GameSettings.AIM_FOV_REDUCTION;
+        if (!ButtonsControll.screensOver || WinLoseScreens.winLoseActive || Equipment.getActiveWeapon() == null) return;
 
-            if (_grenades > _maxGrenades)
-                _grenades = _maxGrenades;
-            if (isLocalPlayer)
-                _grenadesTM.text = _grenades.ToString();
-            // Tuned for the old fixed 50 FPS cap; scaled by frame time so it decays the same at any frame rate.
-            if (crossAccuracy > 1.02f) crossAccuracy = (crossAccuracy + 0.4f) * Mathf.Pow(0.95f, Time.deltaTime * 50f) - 0.4f;
-            if (crossAccuracy < 1.02f) crossAccuracy = 1f;
-            Cross.transform.GetChild(0).transform.localScale = new Vector3(crossAccuracy, crossAccuracy, crossAccuracy);
+        currentRecoil = Equipment.getActiveWeapon().Recoil * (_playerController.IsAiming ? _handling.AdsRecoilMultiplier : 1f);
+        float normalFov = GameSettings.FieldOfView;
+        // Keep the original order. Swap coroutines can change the active weapon before their first yield.
+        UpdateGrenadeHud();
+        UpdateCrosshair();
+        HandleWeaponSwitch();
+        HandleFireMode();
+        HandleReloadInput();
+        HandleGrenades();
+        HandleFireInput();
+        UpdateAiming(normalFov);
+    }
 
-            //changing weapon
-            if (changeWeaponCooldown > 0) changeWeaponCooldown -= Time.deltaTime;
-            if (changeWeaponCooldown <= 0 && Math.Abs(Input.GetAxis("Mouse ScrollWheel")) > 0.01 &&
-                Equipment.getActiveWeapon().State == Weapon.WeaponState.idle && !IsBuildingOnFly && !IsSwitchingWeapon) {
-                changeWeaponCooldown = 2;
-                if (Equipment.Weapon2 != null) {
-                    if (Equipment.Weapon1.gameObject.activeSelf) {
-                        StartCoroutine(HideWeapon(Equipment.Weapon1.gameObject, Equipment.Weapon2.gameObject));    //show rifle
-                    }
-                    else {
-                        StartCoroutine(HideWeapon(Equipment.Weapon2.gameObject, Equipment.Weapon1.gameObject));    //show pistol
-                    }
-                }
-            }
+    private void SuspendInput()
+    {
+        _shootingDone = Input.GetButton(GameInput.Fire);
+        _grenadeTimer = 0f;
+        var weapon = Equipment.getActiveWeapon();
+        if (weapon != null) weapon.GetComponent<Animator>().SetBool(AnimationParameters.Aiming, false);
+    }
 
+    private void UpdateGrenadeHud()
+    {
+        if (_grenades > _maxGrenades) _grenades = _maxGrenades;
+        _grenadesTM.text = _grenades.ToString();
+    }
 
-            //fire mode
-            if (Input.GetKeyDown(KeyCode.B) && !IsSwitchingWeapon) Equipment.getActiveWeapon().changeFireMode();
+    private void UpdateCrosshair()
+    {
+        // Continuous equivalent of the original fixed-frame recovery; keep both threshold comparisons.
+        if (crossAccuracy > _handling.CrosshairRestThreshold)
+            crossAccuracy = (crossAccuracy + _handling.CrosshairRecoveryBias)
+                * Mathf.Pow(_handling.CrosshairRecoveryPerFrame, Time.deltaTime * _handling.ReferenceFrameRate)
+                - _handling.CrosshairRecoveryBias;
+        if (crossAccuracy < _handling.CrosshairRestThreshold) crossAccuracy = 1f;
+        Cross.transform.GetChild(0).localScale = Vector3.one * crossAccuracy;
+    }
 
-            //reloading: only with spare rounds left (CurrentAmmo counts the magazine too)
-            Weapon weapon = Equipment.getActiveWeapon();
-            if (Input.GetKeyDown(KeyCode.R) && weapon.State != Weapon.WeaponState.reloading && !IsSwitchingWeapon &&
-                weapon.CurrentMagAmmo < weapon.MaxMagAmmo && weapon.CurrentAmmo > weapon.CurrentMagAmmo) {
-                StartCoroutine(Reload());
-            }
+    private void HandleWeaponSwitch()
+    {
+        if (changeWeaponCooldown > 0f) changeWeaponCooldown -= Time.deltaTime;
+        if (changeWeaponCooldown > 0f || Math.Abs(Input.GetAxis(GameInput.Scroll)) <= ScrollThreshold
+            || Equipment.getActiveWeapon().State != Weapon.WeaponState.idle || IsBuildingOnFly || IsSwitchingWeapon) return;
+        changeWeaponCooldown = _handling.SwapCooldownSeconds;
+        if (Equipment.Weapon2 == null) return;
+        var from = Equipment.Weapon1.gameObject.activeSelf ? Equipment.Weapon1 : Equipment.Weapon2;
+        var to = from == Equipment.Weapon1 ? Equipment.Weapon2 : Equipment.Weapon1;
+        StartCoroutine(HideWeapon(from.gameObject, to.gameObject));
+    }
 
-            if (Input.GetKey(KeyCode.G)) {
-                if (_grenadeTimer <= 3f) {
-                    _grenadeTimer += Time.deltaTime;
-                }
-            }
-            if (Input.GetKeyUp(KeyCode.G)) {
-                if (_grenades > 0)
-                {
-                    _grenades--;
-                    // Thrown where the player looks (it used to always fly flat along the body's forward).
-                    CmdSpawnGrenade(transform.position, transform.rotation, Cam.transform.forward,
-                        (_grenadeTimer + 0.5f) / 3);
-                    _playerAnimator.SetTrigger("throwing");
-                    _grenadeTimer = 0f;
-                }
-                else
-                {
-                    source.clip = nono;
-                    source.PlayOneShot(source.clip);
-                    _grenadeTimer = 0f; // otherwise the next throw starts fully charged
-                }
-            }
-            
+    private void HandleFireMode()
+    {
+        if (Input.GetKeyDown(KeyCode.B) && !IsSwitchingWeapon) Equipment.getActiveWeapon().changeFireMode();
+    }
 
-            //fireing
-            if (Input.GetButton("Fire1") && Equipment.getActiveWeapon().State == Weapon.WeaponState.idle &&
-                !PauseGame.menuActive && Equipment.getActiveWeapon().CurrentMagAmmo >= 1 && !IsBuildingOnFly && !IsSwitchingWeapon) {
-                Shoot();
-            }
+    private void HandleReloadInput()
+    {
+        var weapon = Equipment.getActiveWeapon();
+        if (Input.GetKeyDown(KeyCode.R) && weapon.State != Weapon.WeaponState.reloading && !IsSwitchingWeapon
+            && weapon.CurrentMagAmmo < weapon.MaxMagAmmo && weapon.CurrentAmmo > weapon.CurrentMagAmmo)
+            StartCoroutine(Reload());
+    }
 
-            if (Input.GetButtonUp("Fire1")) {
-                _shootingDone = false;
-                if (WasBuilt) {
-                    IsBuildingOnFly = false;
-                    WasBuilt = false;
-                }
-            }
-
-            //aiming
-            if (Input.GetButton("Fire2") &&
-                (Equipment.getActiveWeapon().State == Weapon.WeaponState.idle ||
-                 Equipment.getActiveWeapon().State == Weapon.WeaponState.shooting) &&
-                !PauseGame.menuActive && !IsSwitchingWeapon) {
-                currentRecoil = Equipment.getActiveWeapon().Recoil * 0.35f;
-                if (isLocalPlayer) {
-                    Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsSprinting, false);
-                    Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsAiming, true);
-                }
-
-                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, zoomFOV, 1f - Mathf.Exp(-16.643f * Time.deltaTime));
-                Cross.gameObject.SetActive(false);
-                _playerController.SensitivityScale = _playerController.ZoomSensitivity;
-            }
-            else {
-                currentRecoil = Equipment.getActiveWeapon().Recoil;
-                if (isLocalPlayer) Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsAiming, false);
-                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, normalFOV, 1f - Mathf.Exp(-16.643f * Time.deltaTime));
-                Cross.gameObject.SetActive(true);
-                _playerController.SensitivityScale = _playerController.NonZoomSensitivity;
-            }
+    private void HandleGrenades()
+    {
+        if (Input.GetKey(KeyCode.G) && _grenadeTimer <= GrenadeThrowRules.MaximumChargeSeconds)
+            _grenadeTimer += Time.deltaTime;
+        if (!Input.GetKeyUp(KeyCode.G)) return;
+        if (_grenades > 0)
+        {
+            _grenades--;
+            _requests.ThrowGrenade(transform.position, transform.rotation, Cam.transform.forward,
+                GrenadeThrowRules.ForceFromCharge(_grenadeTimer));
+            _playerAnimator.SetTrigger(AnimationParameters.Throwing);
         }
+        else playSound(nono);
+        _grenadeTimer = 0f;
+    }
+
+    private void HandleFireInput()
+    {
+        var weapon = Equipment.getActiveWeapon();
+        if (Input.GetButton(GameInput.Fire) && weapon.State == Weapon.WeaponState.idle && !PauseGame.menuActive
+            && weapon.CurrentMagAmmo >= 1 && !IsBuildingOnFly && !IsSwitchingWeapon) Shoot();
+        if (!Input.GetButtonUp(GameInput.Fire)) return;
+        _shootingDone = false;
+        if (!WasBuilt) return;
+        IsBuildingOnFly = false;
+        WasBuilt = false;
+    }
+
+    private void UpdateAiming(float normalFov)
+    {
+        var weapon = Equipment.getActiveWeapon();
+        bool aiming = Input.GetButton(GameInput.Aim)
+            && (weapon.State == Weapon.WeaponState.idle || weapon.State == Weapon.WeaponState.shooting)
+            && !PauseGame.menuActive && !IsSwitchingWeapon;
+        currentRecoil = weapon.Recoil * (aiming ? _handling.AdsRecoilMultiplier : 1f);
+        var animator = weapon.GetComponent<Animator>();
+        if (aiming) animator.SetBool(AnimationParameters.Sprinting, false);
+        animator.SetBool(AnimationParameters.Aiming, aiming);
+        float targetFov = aiming ? normalFov - GameSettings.AIM_FOV_REDUCTION : normalFov;
+        Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, targetFov, 1f - Mathf.Exp(-_handling.AdsDamping * Time.deltaTime));
+        Cross.SetActive(!aiming);
+        _playerController.SensitivityScale = aiming ? _playerController.ZoomSensitivity : _playerController.NonZoomSensitivity;
     }
 
     public IEnumerator HideWeapon(GameObject toHide, GameObject toShow) {
         IsSwitchingWeapon = true;
+        _swapFrom = toHide;
+        _swapTo = toShow;
         toHide.gameObject.SetActive(true);
         toShow.gameObject.SetActive(true);
-        
+
         toHide.transform.GetChild(0).gameObject.SetActive(true);
         toShow.transform.GetChild(0).gameObject.SetActive(false);
 
-        toHide.transform.GetComponent<Animator>().SetBool(IsHidden, true);
-        toShow.transform.GetComponent<Animator>().SetBool(IsHidden, true);
-        yield return new WaitForSeconds(0.5f);    
+        toHide.transform.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, true);
+        toShow.transform.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, true);
+        yield return new WaitForSeconds(_handling.SwapHalfSeconds);
         toHide.transform.GetChild(0).gameObject.SetActive(false);
         toShow.transform.GetChild(0).gameObject.SetActive(true);
         if(toShow.transform.GetComponent<Weapon>().Id == 1)
             playSound(rifle);
         else
             playSound(pistol);
-        yield return new WaitForSeconds(0.5f); 
-        if (toShow.transform.GetComponent<Weapon>().Id == 0) {
-            toShow.transform.localPosition = new Vector3(0.02f, 0.03f, -0.22f);
-            toShow.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-        }
-        else {
-            toShow.transform.localPosition = new Vector3(0.08f, -0.02f, -0.17f);
-            toShow.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-        }
-        
-        toShow.transform.GetComponent<Animator>().SetBool(IsHidden, false);
-        toHide.transform.GetComponent<Animator>().SetBool(IsHidden, false);
+        yield return new WaitForSeconds(_handling.SwapHalfSeconds);
+        ApplyFirstPersonPose(toShow.GetComponent<Weapon>());
+
+        toShow.transform.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, false);
+        toHide.transform.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, false);
         toHide.gameObject.SetActive(false);
         toShow.gameObject.SetActive(true);
         IsSwitchingWeapon = false;
+        _swapFrom = _swapTo = null;
         Equipment.CmdSetActiveWeapon(toShow.GetComponent<Weapon>().Id);
     }
 
-    private void OnDisable() {
-        // Death or a blocked weapon disables this component mid-swap; don't stay locked afterwards.
+    private static void ApplyFirstPersonPose(Weapon weapon)
+    {
+        if (weapon.Definition != null) weapon.transform.localPosition = weapon.Definition.FirstPersonPosition;
+        else weapon.transform.localPosition = weapon.Id == 0 ? new Vector3(.02f, .03f, -.22f) : new Vector3(.08f, -.02f, -.17f);
+        weapon.transform.localRotation = Quaternion.identity;
+    }
+
+    private void OnDisable()
+    {
+        StopAllCoroutines();
+        if (_reloadingWeapon != null)
+        {
+            _reloadingWeapon.ReloadCompleted -= OnReloadCompleted;
+            _reloadingWeapon.CancelReload();
+            _reloadingWeapon.GetComponent<Animator>().SetBool(AnimationParameters.Reloading, false);
+            _reloadingWeapon = null;
+        }
+        if (_swapFrom != null)
+        {
+            _swapFrom.SetActive(true);
+            _swapFrom.transform.GetChild(0).gameObject.SetActive(true);
+            _swapFrom.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, false);
+        }
+        if (_swapTo != null)
+        {
+            _swapTo.GetComponent<Animator>().SetBool(AnimationParameters.Hidden, false);
+            _swapTo.SetActive(false);
+        }
+        _swapFrom = _swapTo = null;
         IsSwitchingWeapon = false;
         _grenadeTimer = 0f;
         _shootingDone = false;
     }
-    
-    IEnumerator Reload() {
-        if (isLocalPlayer) Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsReloading, true);
-        //Blackened = true;
-        Equipment.getActiveWeapon().reload();
+
+    IEnumerator Reload()
+    {
+        Weapon weapon = Equipment.getActiveWeapon();
+        if (weapon == null || !weapon.TryReload()) yield break;
+        _reloadingWeapon = weapon;
+        weapon.ReloadCompleted += OnReloadCompleted;
+        weapon.GetComponent<Animator>().SetBool(AnimationParameters.Reloading, true);
         playSound(reload);
-        yield return new WaitForSeconds(Equipment.getActiveWeapon().ReloadTime);
-        //Blackened = false;
-        if (isLocalPlayer) Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsReloading, false);
+        yield break;
+    }
+
+    private void OnReloadCompleted(Weapon weapon)
+    {
+        weapon.ReloadCompleted -= OnReloadCompleted;
+        weapon.GetComponent<Animator>().SetBool(AnimationParameters.Reloading, false);
+        if (_reloadingWeapon == weapon) _reloadingWeapon = null;
     }
 
     // Burst of three with half recoil. The old code halved Weapon.Recoil around StartCoroutine, which
@@ -270,18 +302,16 @@ public class PlayerShoot : NetworkBehaviour {
     // from a different weapon after a swap.
     IEnumerator TripleShot() {
         Weapon weapon = Equipment.getActiveWeapon();
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < BurstShotCount; i++) {
             if (!_playerController.CanControl || !isActiveAndEnabled || Equipment.getActiveWeapon() != weapon || IsSwitchingWeapon || weapon.State == Weapon.WeaponState.reloading)
                 yield break;
             PerformWeaponFire(BURST_RECOIL_SCALE);
-            yield return new WaitForSeconds(weapon.FireRate * 0.8f);
+            yield return new WaitForSeconds(weapon.FireRate * BurstIntervalScale);
         }
     }
 
-
     void Shoot() {
-        Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(IsSprinting, false);
-
+        Equipment.getActiveWeapon().GetComponent<Animator>().SetBool(AnimationParameters.Sprinting, false);
 
         if (Equipment.getActiveWeapon().Mode == Weapon.FireMode.single && !_shootingDone) {
             PerformWeaponFire();
@@ -296,81 +326,72 @@ public class PlayerShoot : NetworkBehaviour {
         }
     }
 
-
-    void PerformWeaponFire(float recoilScale = 1f) {
+    void PerformWeaponFire(float recoilScale = 1f)
+    {
         if (!_playerController.CanControl || IsSwitchingWeapon || IsBuildingOnFly) return;
-        if (Equipment.getActiveWeapon().CurrentMagAmmo >= 1) {
-            // Sample the current input/view before this shot adds its new cosmetic recoil.
-            _motor.ApplyView();
-            Vector3 rayOrigin = Cam.transform.position;
-            Vector3 rayDirection = Cam.transform.forward;
-            crossAccuracy += 2f - crossAccuracy * 0.5f;
-            _presentation?.Shot(recoilScale * (_playerController.IsAiming ? 0.35f : 1f));
-            Equipment.PlayerShooting();
-            playSootSound();
-            Equipment.getActiveWeapon().shoot();
-            _motor.IncreaseRecoil(currentRecoil * recoilScale);
-            CmdPlayerShooting();
-            RaycastHit hit;
-            if (Physics.Raycast(rayOrigin, rayDirection, out hit,
-                Equipment.getActiveWeapon().Range,
-                _mask, QueryTriggerInteraction.Ignore)) {
-                bool enemyHit = hit.collider.CompareTag("EnemyHead") || hit.collider.CompareTag("EnemyBody") || hit.collider.CompareTag("EnemyLegs");
-                bool usesEnemyFeedback = enemyHit && hit.collider.GetComponentInParent<EnemyFeedback>() != null;
-                if (hit.collider.CompareTag("Player")) {
-                    var target = hit.collider.GetComponentInParent<PlayerManager>();
-                    if (target != null && !target.IsDead && GameManager.Instance.CanDamagePlayers) {
-                        StartCoroutine(ShowHitmarker());
-                        CmdPlayerShoot(target.transform.name, Equipment.getActiveWeapon().Damage);
-                    }
-                }
-                else if (enemyHit) {
-                    StartCoroutine(ShowHitmarker());
-                    var enemy = hit.collider.GetComponentInParent<EnemyControllerServer>();
-                    if (enemy != null) {
-                        float multiplier = hit.collider.CompareTag("EnemyHead") ? 3f : hit.collider.CompareTag("EnemyBody") ? 2f : 1f;
-                        CmdEnemyShoot(enemy.transform.name, multiplier * Equipment.getActiveWeapon().Damage,
-                            enemy.transform.InverseTransformPoint(hit.point), enemy.transform.InverseTransformDirection(hit.normal));
-                    }
-                }
-                else if (hit.collider.tag == "Barrel") {
-                    Barrel barrel = hit.collider.GetComponent<Barrel>();
-                    //CmdSetAuthAndExplode(barrel.netId, GetComponent<NetworkIdentity>());
-                    CmdExplodeBarrel(barrel.netId);
-                //barrel.Explode();
-                    //barrel.CmdExplodeBarrel(barrel.InitialPosAndTag);
-
-                }
-
-
-                // Enemy hits use their server-confirmed green effect, once on every peer.
-                if (!usesEnemyFeedback) {
-                    Equipment.DoHitEffect(hit.point, hit.normal);
-                    CmdOnHit(hit.point, hit.normal);
-                }
-            }
-
-            if (Equipment.getActiveWeapon().CurrentMagAmmo == 0 && Equipment.getActiveWeapon().CurrentAmmo >= 1)
-                StartCoroutine(Reload());
-        }
+        if (!Equipment.getActiveWeapon().TryFire()) return;
+        // Capture aim before presentation adds this shot's recoil.
+        _motor.ApplyView();
+        Vector3 origin = Cam.transform.position;
+        Vector3 direction = Cam.transform.forward;
+        PresentShot(recoilScale);
+        TraceShot(origin, direction);
+        var weapon = Equipment.getActiveWeapon();
+        if (weapon.CurrentMagAmmo == 0 && weapon.CurrentAmmo >= 1) StartCoroutine(Reload());
     }
 
-    [Command]
-    public void CmdExplodeBarrel(uint objectId)
+    private void PresentShot(float recoilScale)
     {
-        // Another shot or a chain reaction may already have destroyed it.
-        NetworkIdentity barrelIdentity;
-        if (!NetworkServer.spawned.TryGetValue(objectId, out barrelIdentity) || barrelIdentity == null) return;
-        Barrel barrel = barrelIdentity.GetComponent<Barrel>();
-        if (barrel != null) barrel.Explode();
+        crossAccuracy += 2f - crossAccuracy * 0.5f;
+        _presentation?.Shot(recoilScale * (_playerController.IsAiming ? _handling.AdsRecoilMultiplier : 1f));
+        Equipment.PlayerShooting();
+        playSootSound();
+        _motor.IncreaseRecoil(currentRecoil * recoilScale);
+        _requests.Shot();
+    }
+
+    private void TraceShot(Vector3 origin, Vector3 direction)
+    {
+        if (!Physics.Raycast(origin, direction, out var hit, Equipment.getActiveWeapon().Range,
+            _mask, QueryTriggerInteraction.Ignore)) return;
+        bool enemyHit = IsEnemyCollider(hit.collider);
+        bool confirmedEffect = enemyHit && (hit.collider.GetComponentInParent<IEnemyHitTarget>()?.UsesConfirmedHitEffects ?? false);
+        if (hit.collider.CompareTag(GameTags.Player)) HitPlayer(hit.collider);
+        else if (enemyHit) HitEnemy(hit);
+        else if (hit.collider.CompareTag(GameTags.Barrel))
+            _requests.ExplodeBarrel(hit.collider.GetComponent<IExplosiveHitTarget>().EntityId);
+        if (confirmedEffect) return;
+        Equipment.DoHitEffect(hit.point, hit.normal);
+        _requests.EnvironmentHit(hit.point, hit.normal);
+    }
+
+    private static bool IsEnemyCollider(Collider collider)
+    {
+        return collider.CompareTag(GameTags.EnemyHead) || collider.CompareTag(GameTags.EnemyBody)
+            || collider.CompareTag(GameTags.EnemyLegs);
+    }
+
+    private void HitPlayer(Collider collider)
+    {
+        var target = collider.GetComponentInParent<IPlayerHitTarget>();
+        if (target == null || target.IsDead || !GetComponent<PlayerAuthority>().Match.CanDamagePlayers) return;
+        StartCoroutine(ShowHitmarker());
+        _requests.PlayerHit(target.EntityId, Equipment.getActiveWeapon().Damage);
+    }
+
+    private void HitEnemy(RaycastHit hit)
+    {
+        StartCoroutine(ShowHitmarker());
+        var target = hit.collider.GetComponentInParent<IEnemyHitTarget>();
+        if (target == null) return;
+        float multiplier = hit.collider.CompareTag(GameTags.EnemyHead) ? CombatRules.HeadDamageMultiplier
+            : hit.collider.CompareTag(GameTags.EnemyBody) ? CombatRules.BodyDamageMultiplier : CombatRules.LegDamageMultiplier;
+        _requests.EnemyHit(target.EntityId, multiplier * Equipment.getActiveWeapon().Damage,
+            target.Root.InverseTransformPoint(hit.point), target.Root.InverseTransformDirection(hit.normal));
     }
 
     private void playSound(AudioClip clip)
     {
-//        if (clip == hitMarker)
-//            source.volume = 1.0f;
-//        else
-//            source.volume = 0.7f;
         source.clip = clip;
         source.PlayOneShot(source.clip);
     }
@@ -414,66 +435,10 @@ public class PlayerShoot : NetworkBehaviour {
     IEnumerator ShowHitmarker() {
         playSound(hitMarker);
         Cross.transform.GetChild(1).gameObject.SetActive(true);
-        yield return new WaitForSeconds(0.15f);
+        yield return new WaitForSeconds(_handling.HitmarkerSeconds);
         Cross.transform.GetChild(1).gameObject.SetActive(false);
     }
 
-    [Command]
-    void CmdPlayerShooting() {
-        Equipment.RpcPlayerShooting();
-    }
-
-    [Command]
-    void CmdOnHit(Vector3 hitPoint, Vector3 normal) {
-        Equipment.RpcDoHitEffect(hitPoint, normal);
-    }
-
-    // The client reports hits (no lag compensation yet), so at least reject impossible damage.
-    [Server]
-    private bool IsPlausibleDamage(float damage) {
-        PlayerManager self = GetComponent<PlayerManager>();
-        if (self == null || self.IsDead || damage <= 0f) return false;
-        float maxDamage = 0f;
-        foreach (GameObject weaponPrefab in GameManager.Instance.Weapons) {
-            Weapon weapon = weaponPrefab != null ? weaponPrefab.GetComponent<Weapon>() : null;
-            if (weapon != null) maxDamage = Mathf.Max(maxDamage, weapon.Damage);
-        }
-        return damage <= maxDamage * DAMAGE_MULTIPLIER_LIMIT;
-    }
-
-    [Command]
-    void CmdEnemyShoot(string shootEnemyId, float damage, Vector3 localPoint, Vector3 localNormal) {
-        EnemyControllerServer enemy = GameManager.GetEnemy(shootEnemyId);
-        if (enemy == null || enemy._isDying || !IsPlausibleDamage(damage)) return;
-        var feedback = enemy.GetComponent<EnemyFeedback>();
-        // Impact validation is cosmetic; it does not replace the existing damage validation.
-        bool validImpact = feedback != null && feedback.IsValidImpact(localPoint, localNormal);
-        enemy.TakeDamage(damage);
-        if (validImpact) feedback.BulletHit(localPoint, localNormal);
-    }
-
-
-    public void InvokeCmdPlayerShoot(string shootPlayerId, float damage) {
-        CmdPlayerShoot(shootPlayerId, damage);
-    }
-
-    [Command]
-    void CmdPlayerShoot(string shootPlayerId, float damage) {
-        PlayerManager target = GameManager.GetPlayer(shootPlayerId);
-        if (target != null && IsPlausibleDamage(damage)) target.TakeDamage(damage);
-    }
-
-    [Command]
-    void CmdSpawnGrenade(Vector3 playerPos, Quaternion playerRot, Vector3 aimDirection, float force) {
-        // Charge is (0.5..3.5)/3 on the client; clamp what a client may send.
-        force = Mathf.Clamp(force, 0f, 3.5f / 3f);
-        aimDirection = aimDirection.sqrMagnitude > 0.0001f ? aimDirection.normalized : transform.forward;
-        // Spawn in front of the body at chest height, independent of the aim pitch, so it never starts in the floor.
-        Vector3 flatForward = Vector3.ProjectOnPlane(aimDirection, Vector3.up);
-        if (flatForward.sqrMagnitude < 0.0001f) flatForward = transform.forward;
-        GameObject grenade = Instantiate(_grenadePrefab, playerPos + flatForward.normalized + Vector3.up / 2, playerRot);
-        Rigidbody rb = grenade.GetComponent<Rigidbody>();
-        rb.linearVelocity = force * (15 * aimDirection + 5 * Vector3.up);
-        NetworkServer.Spawn(grenade);
-    }
+    // Compatibility entry point used by existing verification tools.
+    public void InvokeCmdPlayerShoot(string playerId, float damage) { _requests.PlayerHit(playerId, damage); }
 }

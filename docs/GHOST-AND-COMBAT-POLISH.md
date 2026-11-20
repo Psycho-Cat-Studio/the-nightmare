@@ -237,3 +237,63 @@ and flashes the preview without spending inventory. Out-of-range previews remain
   previously documented unused PlacementController prefab validation message during the build.
 
 Listening acceptance and real-phone profiling remain manual checks.
+
+
+### Later default-radius tuning (2026-11-20)
+
+The earlier 3.52/1.5 m radii and 0.45/0.191761 scales recorded above are historical. Both item
+prefabs now default to 2.5 m and scale approximately 0.319602, with independent per-prefab tuning.
+The authored reference-size formula, animation and audio remain unchanged. See
+[matching default blast sizes](FRIENDLY-FIRE-EXPLOSIONS.md#matching-default-blast-sizes-2026-11-20).
+
+
+## Additive levitation (2026-11-20)
+
+Ghost's existing idle, run, attack and hit clips have valid rig bindings. The agreed change keeps
+those clips and arm poses, adding one Levitation pivot between Graphics and ghost_rigged_model.
+Authored collider positions and Animator references were checked before/after reparenting; all clip
+bindings remain relative to the same Animator root. GhostOrange and GhostRed inherit the pivot and
+EnemyFeedback reference from Ghost; skeleton prefabs have no levitation component.
+
+GhostLevitation lives in Nightmare.Runtime and only presents an absolute sample. EnemyFeedback
+supplies NetworkTime.time and the entity netId during LateUpdate, before its attack-audio early
+returns. A deterministic fractional seed spaces phases without consuming UnityEngine.Random, so
+spawn selection and audio randomness are unaffected. There are no new RPCs or NetworkBehaviours.
+
+| Serialized parameter | Default | Meaning |
+|---|---:|---|
+| Vertical travel | 0.08 m | Upward-only peak-to-peak motion from the authored pose |
+| Lateral amplitude | 0.015 m | Maximum displacement to either side |
+| Roll | 2 degrees | Maximum sideways tilt |
+| Pitch | 1 degree | Maximum forward/back tilt |
+| Frequency | 0.5 Hz | One two-second cycle across all living animation states |
+
+World-space offsets are converted through the parent transform, accounting for Ghost's 1.2 scale.
+Each sample starts from cached local position/rotation, preventing accumulation. Root navigation,
+body/leg colliders and minimap marker stay fixed; the existing bone-attached head collider and eye
+skin follow the visual rig. The hurt layer continues independently. No root motion, rig-bone edits,
+new renderer, material, light, particle system or per-frame allocation is introduced.
+
+Normal death freezes the current pivot before the existing spectral flash/dissolve. Stage retirement
+also freezes through the existing dying flag on every peer. Neither path restores the base pose
+while visible; disabling the component restores the authored pivot for teardown/reuse.
+
+Five EditMode cases cover world bounds, parent-scale independence, absolute/periodic sampling,
+freeze/reset and gameplay RNG preservation. The PlayMode fixture samples all three variants in
+Waiting, Walking, Running, Screaming and Punching, validates the existing hit layer and impact
+bounds, and checks root/body/leg stability and frozen death pose. The final-victory case also checks
+retirement freeze. The native peer harness samples live bobbing with a stationary navigation root,
+checks a physical head ray and impact bounds, then exercises the existing body-hit/death flow.
+
+Verification: 97 EditMode and 27 PlayMode tests passed, including the two physical chain cases.
+The native client measured 0.0167 m of visual movement with zero navigation-root movement and
+a targetable head; existing body-hit, hurt overlay, placement and retirement checks also passed.
+Both chain scenarios replicated seven unique effects, each once, and all spawned items despawned
+on both peers (`Logs/network-regression-20261120-154842/result.json`). Windows/macOS/Linux
+compile checks passed (`Logs/ghost-motion-compile.log`); the pre-existing TMP editor-harness
+limitation remains. Subjective motion intensity and phone performance remain manual acceptance.
+
+The regular Linux build succeeded with zero errors (63.4 seconds), with runtime QA defines absent.
+Its native graphics verification passed all 15 checks (`Logs/ghost-motion-release-build.json`,
+`Logs/ghost-motion-native-graphics-result.json`). The Editor was left stopped in a clean MainMenu
+scene; temporary test actors and auto-tick were removed/disabled.

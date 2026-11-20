@@ -11,6 +11,7 @@ using UnityEngine;
 //    a scene and save it; Tools/assign_scene_ids.py did it for the converted scenes). They must never
 //    be generated during a build, or Windows, macOS and Linux builds would disagree and could not play
 //    together. CI checks them with "Tools/assign_scene_ids.py --check".
+/// <summary>Persists Mirror prefab asset IDs while leaving saved scene IDs under separate validation.</summary>
 public static class NetworkIdBaker
 {
     [MenuItem("The Nightmare/Assign prefab network ids")]

@@ -28,6 +28,10 @@ PrefabInstance:
       propertyPath: _maxHealth
       value: 200
       objectReference: {fileID: 0}
+    - target: {fileID: 6393132879734960445, guid: 56109102011c6ad4da9309723ed23078, type: 3}
+      propertyPath: _definition
+      value: 
+      objectReference: {fileID: 11400000, guid: c6e37c9761ba3e44f83383e9c1a74f0c, type: 2}
     - target: {fileID: 7401211725289808114, guid: 56109102011c6ad4da9309723ed23078, type: 3}
       propertyPath: _assetId
       value: 2112171203

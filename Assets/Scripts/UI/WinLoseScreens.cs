@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>Presents the match result and exposes replay or exit actions to the UI.</summary>
 public class WinLoseScreens : MonoBehaviour
 {
     private GameObject _win;
@@ -29,7 +28,7 @@ public class WinLoseScreens : MonoBehaviour
     public void ReturnToMenu()
     {
         winLoseActive = false;
-        if (CustomNetworkManager.Instance != null) CustomNetworkManager.Instance.LeaveToMainMenu();
-        else SceneManager.LoadScene("MainMenu");
+        if (SessionServices.Current != null) SessionServices.Current.LeaveToMainMenu();
+        else SceneManager.LoadScene(GameScenes.MainMenu);
     }
 }

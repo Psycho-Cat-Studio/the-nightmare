@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using Image = UnityEngine.UI.Image;
 
+/// <summary>Displays candle capture progress and owns the room-scoped low-candle alarm state.</summary>
 public class CapturePointsUI : MonoBehaviour
 {
     private readonly List<TextMeshProUGUI> captures = new List<TextMeshProUGUI>();
@@ -10,6 +11,8 @@ public class CapturePointsUI : MonoBehaviour
     private readonly List<Sprite> normalSprites = new List<Sprite>();
     private List<CaptureArea> areas = new List<CaptureArea>();
     private bool isSet;
+    private GameManager _game;
+    public void Initialize(GameManager game) { _game = game; }
     private AudioSource source;
     public Sprite _red;
 
@@ -28,10 +31,8 @@ public class CapturePointsUI : MonoBehaviour
     void Update()
     {
         if (!isSet) return;
-        var game = GameManager.Instance;
-        bool fighting = game != null && (game.CurrentMachState == GameManager.MatchState.Room1Fight
-            || game.CurrentMachState == GameManager.MatchState.Room2Fight
-            || game.CurrentMachState == GameManager.MatchState.Room3Fight);
+        var game = _game;
+        bool fighting = game != null && game.Phase == Nightmare.Core.Match.MatchPhase.Defend;
         bool alarm = false;
         for (int i = 0; i < areas.Count; i++)
         {
@@ -49,7 +50,7 @@ public class CapturePointsUI : MonoBehaviour
     {
         // The HUD and AudioSource persist across rooms, so both warning states must reset.
         if (source != null) source.Stop();
-        areas = GameManager.Instance.CurrentRoom.CaptureAreas;
+        areas = _game.World.CurrentRoom.CaptureAreas;
         for (int i = 0; i < captures.Count; i++)
         {
             backgrounds[i].sprite = normalSprites[i];

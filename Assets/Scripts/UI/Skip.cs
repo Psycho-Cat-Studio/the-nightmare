@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.Video;
 
+/// <summary>Ends the intro video on completion, player skip or playback failure and enables menu audio.</summary>
 public class Skip : MonoBehaviour
 {
     [SerializeField] private GameObject _player;

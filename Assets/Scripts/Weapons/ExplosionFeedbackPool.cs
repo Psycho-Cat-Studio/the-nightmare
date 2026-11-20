@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Scene-owned, local presentation only. Damage is never limited by this pool.
+/// <summary>Reuses local explosion presentation objects without limiting authoritative blast damage.</summary>
 public class ExplosionFeedbackPool : MonoBehaviour
 {
     const int CapacityPerPrefab = 4;

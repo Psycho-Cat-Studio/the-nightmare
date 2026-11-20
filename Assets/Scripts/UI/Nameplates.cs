@@ -2,8 +2,12 @@ using UnityEngine;
 
 // Names above other players. Downed teammates are always marked (through walls and at any distance)
 // so they can be found and revived.
-public class Nameplates : MonoBehaviour
+/// <summary>Draws teammate names and downed-player indicators from replicated player state.</summary>
+public class Nameplates : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     private const float MAX_NAME_DISTANCE = 30f;
     private const float HEAD_HEIGHT = 2.1f;
 
@@ -20,7 +24,7 @@ public class Nameplates : MonoBehaviour
 
     private void OnGUI()
     {
-        PlayerManager local = GameManager.LocalPlayer;
+        PlayerManager local = _game?.Players.LocalPlayer;
         if (local == null || WinLoseScreens.winLoseActive || !ButtonsControll.screensOver) return;
         Camera cam = local.GetComponent<PlayerSetup>().ActionCamera;
         if (cam == null || !cam.isActiveAndEnabled) return;
@@ -32,7 +36,8 @@ public class Nameplates : MonoBehaviour
             _shadow.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
         }
 
-        foreach (PlayerManager player in GameManager.Players.Values)
+        if (_game == null) return;
+        foreach (PlayerManager player in _game.Players.Players.Values)
         {
             if (player == null || player == local) continue;
 

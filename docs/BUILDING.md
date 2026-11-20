@@ -92,3 +92,48 @@ Command line (handy for testing two instances on one machine):
 ```bash
 ./TheNightmare -connect 127.0.0.1:7777
 ```
+
+## Regression tests and module checks
+
+In Unity Test Runner, select the `Nightmare.Tests` fixtures in EditMode and PlayMode. PlayMode
+fixtures start real hosts on UDP 7798, unload scenes and return to MainMenu; stop your current
+Play session first. EditMode covers rules/content; PlayMode covers actual gameplay integration.
+No coverage percentage is prescribed.
+
+With an open Editor and Unity CLI/Pipeline:
+
+```bash
+unity command test run --mode editor --filter Nightmare.Tests --project-path "$PWD"
+unity command test run --mode playmode --async-tests true --filter Nightmare.Tests --project-path "$PWD"
+unity command test status --project-path "$PWD"
+python3 Tools/check_module_boundaries.py
+python3 Tools/check_xml_docs.py
+python3 Tools/check_code_hygiene.py
+python3 Tools/assign_scene_ids.py --check
+```
+
+On SteamOS with a Flatpak Hub, forward these commands through the local `unity-steamos-flatpak`
+skill helper; it discovers the current namespace instead of hard-coding a PID. Use
+**The Nightmare → Validation → Validate game content** to check campaign bindings, catalog,
+player rigs, missing scripts and stable scene IDs. Builds run this validation automatically.
+
+For Editor-host + native-client regression, make a separate **development QA build** with
+`ENABLE_RUNTIME_PIPELINE_DEV` temporarily set and all three normal build scenes. Restore the define
+immediately after building; runtime Pipeline must stay out of normal release players. With the
+Editor stopped in MainMenu, run:
+
+```bash
+python3 Tools/run_network_regression.py --player "$PWD/Builds/RefactorQA/TheNightmare"
+```
+
+The script starts/stops its own Play session, uses UDP 7799, launches the client and writes results
+under `Logs/network-regression-<timestamp>/`. For Flatpak, pass
+`--cli-prefix "flatpak enter <current-instance> /home/deck/.local/bin/unity"`; obtain the current
+instance through the skill helper rather than copying an old number. It runs the QA player in the
+same namespace. The harness requires Python 3 and a graphical Linux desktop. It refuses to replace
+an already running Play session. Do not run multiple copies against one Editor or port.
+
+The **Gameplay regression** GitHub workflow runs EditMode/PlayMode using the existing Unity license
+secrets. It skips fork PRs and serializes with the build workflow. Compile checks remain
+license-free; neither replaces two-process or real-device playtesting. Architecture and actual
+verification evidence are in [REFACTORING.md](REFACTORING.md).

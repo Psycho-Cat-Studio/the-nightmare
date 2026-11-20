@@ -2,10 +2,18 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Local presentation of the server's existing capture progress; never changes match rules.
-public class RoomLighting : MonoBehaviour
+/// <summary>Derives local ambient, exposure and fog darkening from candle state and restores scene baselines between rooms.</summary>
+public class RoomLighting : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     public static float ExposureOffset { get; private set; }
     public float CandleFraction { get; private set; } = 1f;
+    const float TransitionRate = 3f;
+    const float MinimumAmbientMultiplier = 0.75f;
+    const float MaximumExposureReduction = 0.45f;
+    const float MaximumFogDensity = 0.12f;
     Room _room;
     float _ambient = 1f;
     float _baseline;
@@ -45,11 +53,11 @@ public class RoomLighting : MonoBehaviour
     }
     void Update()
     {
-        var manager = GameManager.Instance;
-        Room room = manager == null ? null : manager.CurrentRoom;
-        var phase = manager == null ? GameManager.MatchState.None : manager.CurrentMachState;
-        bool fighting = phase == GameManager.MatchState.Room1Fight || phase == GameManager.MatchState.Room2Fight || phase == GameManager.MatchState.Room3Fight;
-        bool lost = phase == GameManager.MatchState.Lose;
+        var manager = _game;
+        Room room = manager == null ? null : manager.World.CurrentRoom;
+        var phase = manager == null ? Nightmare.Core.Match.MatchPhase.None : manager.Phase;
+        bool fighting = phase == Nightmare.Core.Match.MatchPhase.Defend;
+        bool lost = phase == Nightmare.Core.Match.MatchPhase.Lost;
         if (room != _room || (!fighting && !lost))
         {
             ResetLighting();
@@ -70,11 +78,11 @@ public class RoomLighting : MonoBehaviour
             if (area != null && area.CandleCount > 0)
                 fraction = Mathf.Min(fraction, area.LitCandleCount / (float)area.CandleCount);
         CandleFraction = fraction;
-        float t = 1f - Mathf.Exp(-3f * Time.unscaledDeltaTime);
+        float t = 1f - Mathf.Exp(-TransitionRate * Time.unscaledDeltaTime);
         // Ease out: half the candles lost gives 75% of the mood, with the same endpoints.
         float candleDarkness = 1f - fraction * fraction;
-        _ambient = Mathf.Lerp(_ambient, Mathf.Lerp(1f, 0.75f, candleDarkness), t);
-        ExposureOffset = Mathf.Lerp(ExposureOffset, -0.45f * candleDarkness, t);
+        _ambient = Mathf.Lerp(_ambient, Mathf.Lerp(1f, MinimumAmbientMultiplier, candleDarkness), t);
+        ExposureOffset = Mathf.Lerp(ExposureOffset, -MaximumExposureReduction * candleDarkness, t);
         // ambientProbe's getter includes environment intensity; writing it back applies
         // that intensity again. Leave the probe owned by Unity and scale intensity only.
         RenderSettings.ambientIntensity = QualitySettings.activeColorSpace == ColorSpace.Gamma
@@ -82,9 +90,9 @@ public class RoomLighting : MonoBehaviour
             : _baseline * _ambient;
         if (_ownsFog)
         {
-            float darkness = Mathf.Clamp01((1f - _ambient) / 0.25f);
+            float darkness = Mathf.Clamp01((1f - _ambient) / (1f - MinimumAmbientMultiplier));
             RenderSettings.fogColor = Color.Lerp(_fogColor, DarkFogColor, darkness);
-            RenderSettings.fogDensity = Mathf.Lerp(_fogDensity, Mathf.Max(_fogDensity, 0.12f), darkness);
+            RenderSettings.fogDensity = Mathf.Lerp(_fogDensity, Mathf.Max(_fogDensity, MaximumFogDensity), darkness);
         }
     }
     void OnDisable()

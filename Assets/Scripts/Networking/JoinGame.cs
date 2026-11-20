@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -6,6 +6,7 @@ using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 // Server list (games found on the LAN) plus a "join by IP" field for internet / VPN play.
+/// <summary>Presents LAN sessions and direct-address joining through the session-service contract.</summary>
 public class JoinGame : MonoBehaviour
 {
    private const string LAST_ADDRESS_KEY = "LastJoinAddress";
@@ -22,29 +23,29 @@ public class JoinGame : MonoBehaviour
 
    private readonly List<GameObject> _roomList = new List<GameObject>();
    private InputField _addressField;
-   private CustomNetworkManager _networkManager;
+   private Nightmare.Core.Ports.ISessionService _networkManager;
 
    void Start()
    {
-      _networkManager = CustomNetworkManager.Instance;
+      _networkManager = SessionServices.Current;
       CreateAddressUI();
 
-      CustomNetworkManager.StatusChanged += OnStatusChanged;
       if (_networkManager != null)
       {
-         _networkManager.Discovery.GamesChanged += RefreshRoomList;
-         _networkManager.Discovery.StartListening();
+         _networkManager.StatusChanged += OnStatusChanged;
+         _networkManager.Directory.GamesChanged += RefreshRoomList;
+         _networkManager.Directory.StartListening();
       }
       RefreshRoomList();
    }
 
    void OnDestroy()
    {
-      CustomNetworkManager.StatusChanged -= OnStatusChanged;
       if (_networkManager != null)
       {
-         _networkManager.Discovery.GamesChanged -= RefreshRoomList;
-         _networkManager.Discovery.StopListening();
+         _networkManager.StatusChanged -= OnStatusChanged;
+         _networkManager.Directory.GamesChanged -= RefreshRoomList;
+         _networkManager.Directory.StopListening();
       }
    }
 
@@ -98,7 +99,7 @@ public class JoinGame : MonoBehaviour
          return;
       }
 
-      foreach (LanDiscovery.LanGame game in _networkManager.Discovery.Games.OrderBy(g => g.Name))
+      foreach (Nightmare.Core.Ports.SessionListing game in _networkManager.Directory.Games.OrderBy(g => g.Name))
       {
          GameObject roomListItemGO = Instantiate(_roomListInst, _roomListParent, false);
          ServerListItem item = roomListItemGO.GetComponent<ServerListItem>();
@@ -106,10 +107,10 @@ public class JoinGame : MonoBehaviour
          _roomList.Add(roomListItemGO);
       }
 
-      if (!string.IsNullOrEmpty(CustomNetworkManager.LastStatus)) _status.text = CustomNetworkManager.LastStatus;
+      if (!string.IsNullOrEmpty(_networkManager.Status)) _status.text = _networkManager.Status;
       else if (_roomList.Count == 0)
          // Kept to one short line: the status sits over the panel title and longer text covered it.
-         _status.text = _networkManager.Discovery.IsListening ? "Searching..." : "No LAN search";
+         _status.text = _networkManager.Directory.IsListening ? "Searching..." : "No LAN search";
       else _status.text = "";
    }
 
@@ -117,7 +118,7 @@ public class JoinGame : MonoBehaviour
    {
       _status.text = status;
       // Connecting failed or was refused: let the player try again.
-      if (_networkManager != null && !_networkManager.isNetworkActive) _panel.SetActive(false);
+      if (_networkManager != null && !_networkManager.IsNetworkActive) _panel.SetActive(false);
    }
 
    void ClearRoomList()
@@ -126,7 +127,7 @@ public class JoinGame : MonoBehaviour
       _roomList.Clear();
    }
 
-   public void JoinRoom(LanDiscovery.LanGame game)
+   public void JoinRoom(Nightmare.Core.Ports.SessionListing game)
    {
       Connect(game.Address, game.Port);
    }
@@ -135,7 +136,7 @@ public class JoinGame : MonoBehaviour
    {
       string host;
       int port;
-      if (_addressField == null || !CustomNetworkManager.TryParseAddress(_addressField.text, out host, out port))
+      if (_addressField == null || !Nightmare.Core.Ports.SessionAddress.TryParse(_addressField.text, out host, out port))
       {
          _status.text = "Enter host IP";
          return;
@@ -147,7 +148,7 @@ public class JoinGame : MonoBehaviour
 
    private void Connect(string host, int port)
    {
-      if (_networkManager == null || _networkManager.isNetworkActive) return;
+      if (_networkManager == null || _networkManager.IsNetworkActive) return;
       _panel.SetActive(true);
       _panel.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = "Joining " + host + "...";
       _networkManager.Join(host, port);

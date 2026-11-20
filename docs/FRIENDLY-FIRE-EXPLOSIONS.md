@@ -21,8 +21,8 @@ layers are preserved. Existing Commands, damage plausibility checks and health S
 
 Explosions still deal 45 player damage, including self damage; enemy damage remains 150. Each
 explosion's existing HashSet deduplicates multiple colliders belonging to one target. Separate
-explosions in a chain can each deal damage. Blast radius, lack of damage falloff and existing
-through-obstacle blast behavior are unchanged.
+explosions in a chain can each deal damage. Lack of damage falloff and existing through-obstacle
+blast behavior are unchanged; current radius tuning is documented below.
 
 ## Server explosion data
 
@@ -37,7 +37,7 @@ Each existing explosion RPC now carries the actual sphere center and world radiu
 
 `radius = sphere.radius * max(abs(sphere.transform.lossyScale))`
 
-Current grenade radius is 3.52 m; trash-can radius is 1.5 m. No duplicate radius setting is stored
+Current grenade and trash-can radii are both 2.5 m (tuning update, 2026-11-20). No duplicate radius setting is stored
 in the effect. Clients hide the source model/collider before playing local feedback, avoiding a
 ground ray hitting the exploding object itself. Damage remains independent of rendering/pooling.
 
@@ -50,7 +50,7 @@ at their original volume of 1. Native activation starts the original autoplay hi
 controller no longer overrides emissions, gradients, particle counts or dust animation.
 Effects retain the original three-second lifetime and source-specific rotation. Visual scale now
 follows the shared radius ratio described in [Ghost and combat polish](GHOST-AND-COMBAT-POLISH.md):
-0.45 for grenades and 0.191761 for trash cans. The floor ring remains independent.
+approximately 0.319602 for both defaults. The floor ring remains independent.
 
 The previous replacement's 46-particle budget no longer applies. The restored effect needs
 fresh profiling on target phones; the pool bounds instance count, not GPU overdraw.
@@ -132,3 +132,53 @@ restored animation. Gameplay/network checks remain relevant: damage logic was no
 Temporary scripts/screenshots remain in ignored Logs. A real-phone test and listening acceptance
 remain necessary. The previous fixed bug reports about initial HP should be read alongside this
 fresh-join verification; no manual health reset was used in the two-peer lobby check.
+
+
+## Matching default blast sizes (2026-11-20)
+
+The previous 3.52 m grenade and 1.5 m trash-can radii were too different. Both now default to
+2.5 m, a rounded midpoint. This intentionally reduces grenade reach and increases trash-can reach;
+damage, fuse, decay, animation, audio and the shared effect-size/radius ratio remain unchanged.
+The matching effect scales are approximately 0.319602 instead of 0.45/0.191761. Floor rings still
+represent the actual world-space damage radius, not just the apparent fireball size.
+
+Each prefab's ExplosionCollider SphereCollider remains the source of truth. Grenade root scale
+has maximum component 0.22, giving local radius 11.363636; trash-can scale is 0.5, giving local
+radius 5. They are independently editable. No shared constant or runtime override forces the two
+types to stay equal. RPCs carry each explosion's calculated radius, so future per-type tuning also
+updates the local visual and range ring automatically. The historical 3.52 value in the effect's
+scale equation is its authored reference size, not the current damage-radius setting.
+
+
+Runtime verification passed (`Logs/tidy-runtime-result.json`): actual grenade and barrel RPCs
+produced radii 2.5 / 2.5 m, matching visual scales 0.319602 and floor-ring radii 2.5 / 2.5 m.
+A test-only grenade instance configured to 4 m produced the 4 m effect without changing either
+prefab's 2.5 m default, confirming independent tuning. All 24 existing PlayMode regressions passed
+(`Logs/tidy-play-status.json`). Original animations/audio are unchanged; no scripts or packages
+were modified by this tuning pass.
+
+
+## Chain-reaction regression coverage (2026-11-20)
+
+Both explosion-trigger components already route contacts through ExplosionDamage. A Barrel-tagged
+collider calls Barrel.Explode; its existing `_exploded` latch is set before enabling the next blast.
+The current barrel prefab has a kinematic Rigidbody and both relevant colliders use Default layer.
+No new detonation system, damage change, overlap scan or radius override was needed.
+
+New PlayMode tests use actual spawned prefabs, trigger activation, fixed physics updates and RPC
+feedback. One layout puts barrels at offsets 0 / 2.2 / 4.4 / 8 m: the third barrel is outside the
+first blast but within the second; the last stays intact. The grenade layout puts its source at 0
+and barrels at 2.2 / 4.4 / 6.6 / 10.2 m, proving propagation beyond direct grenade reach. Duplicate
+source detonation does not create duplicate effects, and detonated barrels release their reserved
+cells while the out-of-range barrel retains its reservation. Assertions wait for physics/RPC work,
+not just the immediate return from Explode.
+
+The two-process harness additionally arms a native-client observer before triggering both chains.
+It records each effect by instance/start time and world center, checks one effect per expected
+center and the transmitted 2.5 m radius, and verifies replicated despawns. Observer code lives under
+Tools/Regression and is never part of the shipped game. Existing player-damage deduplication,
+lobby immortality, through-obstacle blast rules and source-specific audio remain unchanged.
+
+Both new physical tests passed within the 27-case PlayMode suite. The two-peer run passed both
+chain layouts: seven unique, correctly sized effects and replicated despawns, with no duplicate
+detonations (`Logs/network-regression-20261120-154842/result.json`).

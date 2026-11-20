@@ -6,6 +6,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 // The serialized shell is shared by main menu, lobby and pause. Rows bind to existing preferences.
+/// <summary>Builds and binds settings rows, modal navigation and display-confirmation presentation.</summary>
 public class SettingsMenuView : MonoBehaviour
 {
     [SerializeField] private TMP_FontAsset _font;
@@ -225,7 +226,7 @@ public class SettingsMenuView : MonoBehaviour
     }
     private static RectTransform Rect(Transform parent, string name)
     {
-        var go = new GameObject(name, typeof(RectTransform)); go.layer = LayerMask.NameToLayer("UI");
+        var go = new GameObject(name, typeof(RectTransform)); go.layer = LayerMask.NameToLayer(GameLayers.UI);
         go.transform.SetParent(parent, false);
         return (RectTransform)go.transform;
     }

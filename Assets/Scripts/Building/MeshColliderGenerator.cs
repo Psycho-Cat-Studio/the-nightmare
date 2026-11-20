@@ -1,12 +1,9 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEditor;
 
+/// <summary>Adds BoxColliders to rendered mesh objects during legacy edit-mode authoring.</summary>
 [ExecuteInEditMode]
 public class MeshColliderGenerator : MonoBehaviour
 {
-    // Start is called before the first frame update
     void Awake()
     {
         AddMeshColliderRecursively(transform);

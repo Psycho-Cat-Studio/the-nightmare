@@ -1,14 +1,13 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>Presents the local health view and initializes the shared damage overlay.</summary>
 public class HealthBar : MonoBehaviour
 {
     private TextMeshProUGUI percentage;
     private RectTransform full;
-    public PlayerManager player;
+    public Nightmare.Core.Ports.IHealth player;
     public bool playerEnabled;
     private float ratio;
 
@@ -23,7 +22,7 @@ public class HealthBar : MonoBehaviour
     {
         if (playerEnabled)
         {
-            ratio = player._currentHealth / player._maxHealth;
+            ratio = player.CurrentHealth / player.MaximumHealth;
             if (ratio < 0) ratio = 0;
             percentage.text = ((int)(ratio * 100)).ToString();// + "%";
             full.localScale = new Vector3(ratio, full.localScale.y, full.localScale.z);

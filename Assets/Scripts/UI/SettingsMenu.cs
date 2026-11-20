@@ -6,8 +6,12 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 // Persistent controller; the uGUI view is a reusable prefab with the game's menu artwork/font.
-public class SettingsMenu : MonoBehaviour
+/// <summary>Owns settings-window lifetime, input routing and reversible display trials.</summary>
+public class SettingsMenu : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     public static bool IsOpen { get { return _instance != null && _instance._open; } }
     private static SettingsMenu _instance;
     private static int _escapeFrame = -1;
@@ -110,7 +114,7 @@ public class SettingsMenu : MonoBehaviour
         }
         _previousSelection = EventSystem.current == null ? null : EventSystem.current.currentSelectedGameObject;
         _open = true;
-        if (GameManager.LocalPlayer != null) PauseGame.menuActive = true;
+        if (_game?.Players.LocalPlayer != null) PauseGame.menuActive = true;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         _fullscreen = Screen.fullScreen;
@@ -183,7 +187,7 @@ public class SettingsMenu : MonoBehaviour
             _oldWidth = Screen.width; _oldHeight = Screen.height; _oldMode = Screen.fullScreenMode;
             _oldRenderScale = GraphicsPreferences.RenderScale;
             // A quit/crash during an unconfirmed first trial must not become the next launch's resolution.
-            if (!PlayerPrefs.HasKey("display.width")) GraphicsPreferences.SaveDisplay(_oldWidth, _oldHeight, _oldMode);
+            if (!PlayerPrefs.HasKey(GraphicsPreferenceKeys.DisplayWidth)) GraphicsPreferences.SaveDisplay(_oldWidth, _oldHeight, _oldMode);
         }
         _displayTrial = true;
         _displayDeadline = Time.realtimeSinceStartup + 15;

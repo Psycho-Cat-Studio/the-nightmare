@@ -42,6 +42,9 @@ PY
 
 # Mirror sceneIds must be saved in the scenes (not generated per build) so all platforms agree.
 python3 Tools/assign_scene_ids.py --check
+python3 Tools/check_module_boundaries.py
+python3 Tools/check_xml_docs.py
+python3 Tools/check_code_hygiene.py
 OUT=$(mktemp -d)
 status=0
 for platform in WIN OSX LINUX; do

@@ -1,0 +1,13 @@
+using UnityEngine;using System.Reflection;using System.Linq;using System.IO;
+string dir=__RUN_DIR__;
+await Wait.Until(()=>File.Exists(Path.Combine(dir,"chain-client-observed.txt")),25000);
+var lines=File.ReadAllLines(Path.Combine(dir,"chain-client-observed.txt"));
+if(lines.Any(line=>line=="TIMEOUT"))throw new Exception("Replica chain observer timed out: "+string.Join(";",lines));
+var events=lines.Select(line=>line.Split('\t')).ToDictionary(parts=>parts[0],parts=>parts);
+var expected=File.ReadAllLines(Path.Combine(dir,"chain-expected.txt"));
+if(events.Count!=expected.Length||expected.Any(key=>!events.ContainsKey(key)||int.Parse(events[key][1])!=1))throw new Exception("Missing or duplicate replica chain effects: "+string.Join(";",lines));
+if(events.Values.Any(parts=>Mathf.Abs(float.Parse(parts[2],System.Globalization.CultureInfo.InvariantCulture)-2.5f)>.001f))throw new Exception("Replica chain radius mismatch");
+Type TypeOf(string name)=>AppDomain.CurrentDomain.GetAssemblies().Select(a=>a.GetType(name)).First(t=>t!=null);
+var identity=TypeOf("Mirror.NetworkIdentity");var ids=File.ReadAllLines(Path.Combine(dir,"chain-netids.txt")).Select(uint.Parse).ToArray();
+await Wait.Until(()=>Object.FindObjectsByType(identity).All(component=>!ids.Contains((uint)identity.GetProperty("netId").GetValue(component))),5000);
+return new{passed=true,scenarios=2,uniqueEffects=events.Count,allDespawned=true};

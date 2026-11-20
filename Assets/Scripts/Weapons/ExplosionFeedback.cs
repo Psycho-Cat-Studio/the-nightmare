@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 // Replays the original authored explosion unchanged, with a separate world-radius indicator.
+/// <summary>Plays authored explosion presentation and transient radius feedback at the requested world scale.</summary>
 public class ExplosionFeedback : MonoBehaviour
 {
     [SerializeField] Material _ringMaterial;

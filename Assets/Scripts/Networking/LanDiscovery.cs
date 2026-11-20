@@ -10,28 +10,21 @@ using UnityEngine;
 // Finds games on the local network with plain UDP broadcasts, replacing the shut-down
 // Unity matchmaker. A host advertises once a second; the lobby listens and lists hosts.
 // Works the same on Windows, macOS and Linux and does not depend on UNET.
-public class LanDiscovery : MonoBehaviour
+/// <summary>Advertises and discovers compatible direct-connect sessions over local UDP broadcasts.</summary>
+public class LanDiscovery : MonoBehaviour, Nightmare.Core.Ports.ISessionDirectory
 {
     public const int DISCOVERY_PORT = 47777;
     private const string MAGIC = "NIGHTMARE/1";
     private const float ADVERTISE_INTERVAL = 1f;
     private const float GAME_TIMEOUT = 3.5f;
 
-    public class LanGame
+    /// <summary>Stores one LAN advertisement together with its compatibility and last-seen information.</summary>
+    public class LanGame : Nightmare.Core.Ports.SessionListing
     {
-        public string Name;
-        public string Address;
-        public int Port;
-        public int Players;
-        public int MaxPlayers;
-        public bool InProgress;
-        public string Version;
         public float LastSeen;
-
-        public bool IsFull { get { return Players >= MaxPlayers; } }
-        public bool IsCompatible { get { return Version == Application.version; } }
-        public bool CanJoin { get { return IsCompatible && !IsFull && !InProgress; } }
+        public override bool IsCompatible => Version == Application.version;
     }
+    IEnumerable<Nightmare.Core.Ports.SessionListing> Nightmare.Core.Ports.ISessionDirectory.Games => _games.Values;
 
     public event Action GamesChanged;
     public IEnumerable<LanGame> Games { get { return _games.Values; } }

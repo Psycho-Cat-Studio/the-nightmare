@@ -1,7 +1,6 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Removes BoxColliders recursively during legacy edit-mode mesh authoring.</summary>
 [ExecuteInEditMode]
 public class MeshColliderRemover : MonoBehaviour
 {
