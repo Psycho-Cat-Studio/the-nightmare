@@ -1,24 +1,22 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using Mirror;
 
-public class TeddyBearCollider : NetworkBehaviour
+/// <summary>Reports melee contact boundaries to the authoritative teddy-bear fight state.</summary>
+public class TeddyBearCollider : MonoBehaviour
 {
     void Start()
     {
-        if (!isServer) enabled = false;
+        if (GetComponentInParent<IEntityLifetime>()?.IsAuthority != true) enabled = false;
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if(other.CompareTag("EnemyLegs") || other.CompareTag("EnemyHead") || other.CompareTag("EnemyBody"))
+        if(other.CompareTag(GameTags.EnemyLegs) || other.CompareTag(GameTags.EnemyHead) || other.CompareTag(GameTags.EnemyBody))
             transform.parent.GetComponent<TeddyBearServer>().DamageEntryDetected(other);
     }
 
     private void OnTriggerExit(Collider other)
     {
-        if(other.CompareTag("EnemyLegs") || other.CompareTag("EnemyHead") || other.CompareTag("EnemyBody"))
+        if(other.CompareTag(GameTags.EnemyLegs) || other.CompareTag(GameTags.EnemyHead) || other.CompareTag(GameTags.EnemyBody))
             transform.parent.GetComponent<TeddyBearServer>().DamageExitDetected(other);
     }
 }

@@ -1,7 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 
+/// <summary>Displays preparation and invasion states on an enemy spawn marker.</summary>
 public class ExPointBlink : MonoBehaviour
 {
 
@@ -10,13 +10,11 @@ public class ExPointBlink : MonoBehaviour
     private Color _prepareColor = new Color(1f, 140f / 255f, 0f); // Color is 0..1; 255,140,0 rendered as white
     private Color _baseColor = Color.red;
     private Coroutine _blink;
-    // Start is called before the first frame update
     void Start()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
         _spriteRenderer.color = _prepareColor;
     }
-
 
     private IEnumerator Blink()
     {

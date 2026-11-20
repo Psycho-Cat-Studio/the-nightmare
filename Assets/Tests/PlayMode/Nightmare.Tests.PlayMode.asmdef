@@ -1,0 +1,12 @@
+{
+  "name": "Nightmare.Tests.PlayMode",
+  "references": [
+    "Nightmare.Tests.Support",
+    "Nightmare.Core",
+    "Nightmare.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

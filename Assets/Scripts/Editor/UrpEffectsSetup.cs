@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEngine;
 
 // Profiles intentionally contain every switchable effect so player builds retain their variants.
+/// <summary>Authors URP effect profiles, renderer settings and camera-stack configuration in the Editor.</summary>
 public static class UrpEffectsSetup
 {
     static ScriptableObject Profile(string path)

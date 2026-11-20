@@ -1,9 +1,11 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class ButtonsControll : MonoBehaviour
+/// <summary>Advances the authored welcome/control screens and enables local lobby readiness input.</summary>
+public class ButtonsControll : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     public static bool screensOver = false;
     public void SkipWelcomeScreen()
     {
@@ -15,6 +17,6 @@ public class ButtonsControll : MonoBehaviour
     {
         transform.GetChild(1).gameObject.SetActive(false);
         screensOver = true;
-        GameManager.IsListeningForReady = true;
+        _game.Players.IsListeningForReady = true;
     }
 }

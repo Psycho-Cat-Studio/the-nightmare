@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc851579a7c401b0da830520960c7267, type: 3}
+  m_Name: Campaign
+  m_EditorClassIdentifier: Nightmare.Configuration::Nightmare.Configuration.CampaignDefinition
+  Stages:
+  - {fileID: 11400000, guid: 1b4a1fb2f1a00c30c85ea4c75f71df8f, type: 2}
+  - {fileID: 11400000, guid: c280b6c6ec3e1d175b05ebcb0a0f8e30, type: 2}
+  - {fileID: 11400000, guid: 8c5df7b35937ccc368577e984687b54b, type: 2}

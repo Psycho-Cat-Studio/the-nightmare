@@ -268,3 +268,60 @@ were not introduced or changed here. The user's console was not cleared. Native 
 logged no exceptions.
 
 Local Rider DLL changes and scene recovery copies are outside this work.
+
+
+### Furniture brown in the final room (2026-11-20)
+
+The chair/table models under Models/Furniture used embedded URP/Lit `brown` materials with base
+color approximately (0.049, 0.0216, 0.0147), no base/normal texture, metallic 0 and smoothness 0.5.
+The shader was supported; the albedo itself appeared almost black under the existing night lighting.
+This is an appearance correction, not a proven shader-conversion or project color-space defect.
+
+Assets/Materials/FurnitureBrown.mat copies those surface settings and authors the source brown hue
+at approximately (0.491, 0.317, 0.254). Only each model's `brown` slot is remapped through ModelImporter.
+The same imported models are reused elsewhere, so their other instances receive the consistent wood
+color too. Model GUIDs, geometry, lighting, fog and global exposure remain unchanged. No emission,
+new shader, render pass, texture or package was added; both models share one persistent material.
+
+Before/after captures use the same camera, atmosphere and world position in the last campaign room.
+An initial edit-mode preview had a zero ambient probe and was rejected as evidence. The corrected
+comparison calls DynamicGI.UpdateEnvironment and waits before rendering; it measured ambient SH
+coefficient 0.10827, matching the live game. The old color is reproduced with a temporary material
+property block; no scene or shared asset is modified for the before image. Evidence is local under
+Logs/split-furniture-lit-before.png and Logs/split-furniture-lit-after.png. A first attempt to repeat
+material extraction after remapping found no embedded material; the maintenance script now reuses
+the external material and fixed source-color inputs, making the adjustment idempotent.
+
+UrpMigrationAudit now also enumerates embedded materials in model dependencies instead of checking
+only `.mat` files. Remapped external materials remain normal dependency checks. The final acceptance
+includes normal native-player graphics verification and reimport persistence.
+
+
+Furniture remaps survived SaveAndReimport on both models (`Logs/split-scene-saved.json`), and the
+extended build audit reported 258 supported materials and zero errors. The normal Linux player's
+15-check graphics scenario passed (`Logs/split-native-graphics-result.json`), including nighttime
+ambient stability and candle-fog resets in all three rooms. Mobile appearance/performance remains
+part of the target-device play-test pass.
+
+
+### Build grid on the second room's candles (2026-11-20)
+
+The second capture area in campaign stage 2 (Room6 / Area 1, world center -22, 3, 20) still had a
+3-by-3 block of build cells beneath its candles. Nine GridPoint objects and their nine separately
+referenced visual objects were removed through Unity. Cells span X -23 through -21 and Z 19 through
+21. Deleting the logical cells also removes them from authority placement lookup; hiding sprites
+alone would have left valid server placement targets on the candle platform.
+
+All six shipped candle areas were inspected within their owning rooms, preserving separation
+between overlapping upper/lower floors. The other five already had clear footprints. Stage grid
+counts are now 97 / 77 / 336 (previously 97 / 86 / 336); including the lobby, 519 cells remain (528 before this edit).
+The lobby's seventh candle area was also checked and already clear. Remaining stable IDs are unchanged.
+Candle objects, attack triggers, capture indicators and NavMesh
+were preserved. Local reports are Logs/tidy-changes.json and Logs/tidy-candle-grid-after.json.
+
+
+The runtime registry audit found zero candle-overlapping cells across all seven scene areas,
+including the lobby; none of the nine removed IDs remain valid placement targets. All 24 PlayMode
+regressions passed, including navigation, capture loss and placement lifecycle. The saved scene
+was reloaded and remaining IDs preserved. Runtime screenshots are local at
+Logs/tidy-candle-grid-runtime.png and Logs/tidy-default-explosions-runtime.png. Changes are confined to two collider-radius settings and the nine authored cell/visual pairs.

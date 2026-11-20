@@ -7,6 +7,7 @@ using UnityEngine.SceneManagement;
 using Mirror;
 
 // Small repeatable smoke test; run in Play mode, never modifies saved scene assets.
+/// <summary>Runs an Editor-side URP smoke scenario without saving runtime scene changes.</summary>
 public static class UrpVerification
 {
     static int step;
@@ -21,7 +22,7 @@ public static class UrpVerification
         next = 0;
         EditorApplication.update -= Tick;
         EditorApplication.update += Tick;
-        SceneManager.LoadScene("LobbyTests");
+        SceneManager.LoadScene(GameScenes.Lobby);
     }
     static void Tick()
     {
@@ -32,6 +33,7 @@ public static class UrpVerification
             return;
         }
         if (EditorApplication.timeSinceStartup < next) return;
+        var game = UnityEngine.Object.FindFirstObjectByType<GameManager>();
         try
         {
             if (step == 0)
@@ -43,13 +45,13 @@ public static class UrpVerification
             }
             else if (step == 1)
             {
-                if (GameManager.Instance == null || GameManager.LocalPlayer == null) return;
+                if (game == null || game.Players.LocalPlayer == null) return;
                 foreach (var screens in UnityEngine.Object.FindObjectsByType<ButtonsControll>())
                 {
                     screens.SkipWelcomeScreen();
                     screens.SkipControls();
                 }
-                GameManager.Instance.ServerSetMatchState(GameManager.MatchState.Room1Prepare);
+                game.ServerSetProgress(new Nightmare.Core.Match.MatchProgress(Nightmare.Core.Match.MatchPhase.Prepare));
                 step = 2;
                 next = EditorApplication.timeSinceStartup + 5;
             }
@@ -58,7 +60,7 @@ public static class UrpVerification
                 ScreenCapture.CaptureScreenshot("Logs/urp-host.png");
                 var cameras = Camera.allCameras;
                 string report = "Host: " + NetworkServer.active + "\nClient: " + NetworkClient.isConnected
-                    + "\nScene: " + SceneManager.GetActiveScene().name + "\nPlayer: " + GameManager.LocalPlayer.name;
+                    + "\nScene: " + SceneManager.GetActiveScene().name + "\nPlayer: " + game.Players.LocalPlayer.name;
                 foreach (Camera camera in cameras)
                 {
                     var data = camera.GetComponents<Component>().FirstOrDefault(c => c != null && c.GetType().Name == "UniversalAdditionalCameraData");
@@ -69,14 +71,14 @@ public static class UrpVerification
                     .SelectMany(r => r.sharedMaterials).Where(m => m != null && (m.shader == null || m.shader.name == "Hidden/InternalErrorShader" || !m.shader.isSupported));
                 report += "\nUnsupported visible materials: " + string.Join(",", bad.Select(m => m.name).Distinct());
                 File.WriteAllText("Logs/urp-smoke.txt", report);
-                GameManager.Instance.ServerSetMatchState(GameManager.MatchState.Room1Fight);
+                game.ServerSetProgress(new Nightmare.Core.Match.MatchProgress(Nightmare.Core.Match.MatchPhase.Defend));
                 step = 3;
                 next = EditorApplication.timeSinceStartup + 12;
             }
             else if (step == 3)
             {
                 ScreenCapture.CaptureScreenshot("Logs/urp-fight.png");
-                File.AppendAllText("Logs/urp-smoke.txt", "\nFight phase: " + GameManager.Instance.CurrentMachState
+                File.AppendAllText("Logs/urp-smoke.txt", "\nFight phase: " + game.Progress.Phase
                     + "\nEnemies: " + UnityEngine.Object.FindObjectsByType<EnemyControllerServer>().Length);
                 EditorApplication.update -= Tick;
                 Debug.Log("[URP] Host smoke test completed. See Logs/urp-smoke.txt and screenshots.");

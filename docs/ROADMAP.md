@@ -12,6 +12,9 @@ See [CHANGELOG.md](../CHANGELOG.md). In short:
 - Remote players' weapons, settings window, player names and downed markers.
 - Uncapped frame rate.
 - Unity 6.6 and Mirror (replacing UNET).
+- Engine-free rules, data-defined stages/content, explicit rig/HUD bindings and isolated Mirror adapters.
+- EditMode/PlayMode regression suites and a two-process network harness; see [REFACTORING.md](REFACTORING.md).
+- Explicit match ownership, one generic stage model and safe stage-completion enemy cleanup.
 - Many bug fixes.
 
 ## Next
@@ -33,10 +36,10 @@ See [CHANGELOG.md](../CHANGELOG.md). In short:
 6. **Key rebinding** in the settings window.
 7. **Late join / reconnect**: sync the full match state to players joining a running match.
 8. **Code health**:
-   - Delete the old test scenes (see [ARCHITECTURE.md](ARCHITECTURE.md#scenes-build-settings-order)).
-   - Split `GameManager`.
-   - Replace `GameObject.Find` / `GetChild(n)` lookups with serialized references.
+   - Keep experimental scenes archived; migrate their configuration if they return to active development.
+   - Adapt remaining player/world integration boundaries when adding another backend or play mode.
+   - Migrate remaining legacy world/effect hierarchy fallbacks to authored references.
    - Fix the negative-scale BoxColliders on the sofas.
    - Re-save the 2018 NavMesh/LightingData assets.
-   - Add play-mode tests for the match flow.
+   - Extend regression coverage for adverse networks, reconnect and mobile devices.
 9. **Repository size**: move large binary assets to Git LFS (the history is ~2 GB) to speed up CI checkouts.

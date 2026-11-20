@@ -1,6 +1,7 @@
 using UnityEngine;
 
 // Player preferences, persisted with PlayerPrefs and applied at startup.
+/// <summary>Persists player identity, controls, frame pacing, quality and audio preferences.</summary>
 public static class GameSettings
 {
     private const string SENSITIVITY_KEY = "settings.mouseSensitivity";

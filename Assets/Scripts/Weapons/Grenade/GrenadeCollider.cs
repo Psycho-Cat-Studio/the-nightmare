@@ -1,6 +1,7 @@
 using UnityEngine;
 
 // Was a NetworkBehaviour although it never used networking; the explosion only acts on the server.
+/// <summary>Applies shared blast damage for contacts while its owning grenade has enabled server explosion damage.</summary>
 public class GrenadeCollider : MonoBehaviour
 {
     public bool server = false;

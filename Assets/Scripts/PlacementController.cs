@@ -1,15 +1,25 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TMPro;
+using Nightmare.Core.World;
 using UnityEngine;
-using Mirror;
 
-public class PlacementController : NetworkBehaviour
+/// <summary>Coordinates local placement input, preview feedback and accepted or rejected inventory updates.</summary>
+public class PlacementController : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
+    private IPlacementRequests _requests;
+    private PlayerAuthority _authority;
+    public bool isLocalPlayer => _authority != null && _authority.IsLocalPlayer;
+    public void InitializePlacement(IPlacementRequests requests) { _requests = requests; }
+    public IReadOnlyList<GameObject> PlaceablePrefabs => _placeableObject;
+    void Awake() { _authority = GetComponent<PlayerAuthority>(); }
     public static float GridTileSize = 1f;
     private const float PlacementRadiusInTiles = 2f;
+    private const float PreviewRayDistance = 100f;
     [SerializeField] private List<GameObject> _placeableObject;
     [SerializeField] private List<GameObject> _placeableObjectModels;
-    //public GameObject PlaceableObject {get { return _placeableObject; } set { _placeableObject = value; }}
     private float _mouseWheelRotation;
     private float _x = 0, _y = 0, _reverseGrid, _camMinZoom, _camMaxZoom;
     private GameObject _currentObject;
@@ -24,11 +34,9 @@ public class PlacementController : NetworkBehaviour
     private string _currentTag;
     private Transform _buildingCameraHolder;
     private Camera _buildingCamera;
-    private float _buildingCameraAngle = 0f;
     private Camera _actionCamera;
     private Camera _currentCamera;
-    [SerializeField] private GameObject _gridPointPrefab;
-    [SerializeField] private float _scrollBorderThickness = 0.005f;  // percentage of screen height
+    [SerializeField] private float _scrollBorderThickness = 0.005f;  // Legacy pixel threshold, despite the original percentage description.
     [SerializeField] private float _moveSpeedMinZoom = 30f;
     [SerializeField] private float _moveSpeedMaxZoom = 30f;
     [SerializeField] private float _rotationSpeedKeyboard = 150f;
@@ -41,7 +49,6 @@ public class PlacementController : NetworkBehaviour
     public const int INDEX_OF_SNARES = 0;
     public const int INDEX_OF_BEAR = 1;
     public const int INDEX_OF_BARREL = 2;
-    private CustomNetworkManager _customNetworkManager;
 
     private PlayerShoot _playerShoot;
     private PlayerManager _playerManager;
@@ -55,7 +62,6 @@ public class PlacementController : NetworkBehaviour
         get => _currentObject;
         set => _currentObject = value;
     }
-
 
     public bool hasNoPlaceable()
     {
@@ -71,18 +77,28 @@ public class PlacementController : NetworkBehaviour
         if (_placementPending) return;
         _placeableIndex = index;
         UpdatePlaceable();
-          
+
     }
 
     private void Start()
     {
         _source = GetComponent<AudioSource>();
+        var content = _game.Content;
+        if (content != null && content.Placeables != null)
+        {
+            _placeableObject = new List<GameObject>();
+            _placeableObjectModels = new List<GameObject>();
+            maxPlaceable = new int[content.Placeables.Length];
+            if (placeableCount.Length != maxPlaceable.Length) System.Array.Resize(ref placeableCount, maxPlaceable.Length);
+            for (int i = 0; i < content.Placeables.Length; i++)
+            {
+                var item = content.Placeables[i];
+                _placeableObject.Add(item.Prefab); _placeableObjectModels.Add(item.PreviewPrefab); maxPlaceable[i] = item.InventoryLimit;
+            }
+        }
         if (isLocalPlayer)
         {
-            //_customNetworkManager = GameObject.Find("NetworkManager").GetComponent<CustomNetworkManager>();
-            _placeableTM[0] = GameObject.Find("SnaresCount").GetComponent<TextMeshProUGUI>();
-            _placeableTM[1] = GameObject.Find("TeddyBearCount").GetComponent<TextMeshProUGUI>();
-            _placeableTM[2] = GameObject.Find("BarrelsCount").GetComponent<TextMeshProUGUI>();
+            _placeableTM = _game.SceneBindings.PlaceableCounts;
         }
 
         _playerShoot = GetComponent<PlayerShoot>();
@@ -93,7 +109,7 @@ public class PlacementController : NetworkBehaviour
         _camMaxZoom = _buildingCamera.transform.position.y;
         _camMinZoom = 1f;
         _currentCamera = _actionCamera = gameObject.transform.Find("PlayerCamera").GetComponent<Camera>();
-        
+
     }
 
     private void Update()
@@ -105,12 +121,8 @@ public class PlacementController : NetworkBehaviour
             if (_currentObject != null) _currentObject.SetActive(false);
             return;
         }
-        if(isLocalPlayer)
-            for (int i = 0; i < 3; i++)
-            {
-                _placeableTM[i].text = placeableCount[i].ToString();
-            }
-            
+        UpdateInventoryHud();
+
         HandleKeys();
         if (_currentObject != null)
         {
@@ -122,7 +134,7 @@ public class PlacementController : NetworkBehaviour
             }
             UpdateInvalidPreview();
         }
-        
+
     }
 
     private void PlaySound(AudioClip clip)
@@ -131,64 +143,42 @@ public class PlacementController : NetworkBehaviour
         _source.PlayOneShot(_source.clip);
     }
 
-
     int returnFirstAvailableBiggerIndex()
     {
-        int tempIndex = _placeableIndex;
-        while (true)
-        {
-            tempIndex++;
-            if (tempIndex > _placeableObject.Count - 1) tempIndex = 0;
-            if (placeableCount[tempIndex] != 0)
-            {
-                return tempIndex;
-            }
-            if (tempIndex == _placeableIndex) return _placeableIndex;
-        }
+        return InventorySelection.FindAvailable(placeableCount, _placeableIndex, 1, _placeableObject.Count);
     }
-
 
     int returnFirstAvaialbleSmallerIndex()
     {
-        int tempIndex = _placeableIndex;
-        while (true)
-        {
-            tempIndex--;
-            if (tempIndex < 0) tempIndex = _placeableObject.Count - 1;
-            if (placeableCount[tempIndex] != 0)
-            {
-                return tempIndex;
-            }
-            if (tempIndex == _placeableIndex) return _placeableIndex;
-        }
-
+        return InventorySelection.FindAvailable(placeableCount, _placeableIndex, -1, _placeableObject.Count);
     }
 
+    private void UpdateInventoryHud()
+    {
+        int count = Mathf.Min(placeableCount.Length, _placeableTM.Length);
+        for (int i = 0; i < count; i++)
+            if (_placeableTM[i] != null) _placeableTM[i].text = placeableCount[i].ToString();
+    }
 
     void RotateWheel()
     {
         if (_placementPending) return;
         _mouseWheelRotation = 0;
         _mouseWheelRotation += Input.mouseScrollDelta.y;
-        
+
         if (_mouseWheelRotation > 0.5)
         {
-
-            //if (_placeableIndex > _placeableObject.Count - 1) _placeableIndex = 0;
             _placeableIndex = returnFirstAvailableBiggerIndex();
             UpdatePlaceable();
-            //_currentObject.transform.Rotate(Vector3.up, 90);
         }
         else if (_mouseWheelRotation < -0.5)
         {
             _placeableIndex = returnFirstAvaialbleSmallerIndex();
-            //if (_placeableIndex < 0) _placeableIndex = _placeableObject.Count - 1;
             UpdatePlaceable();
-            //_currentObject.transform.Rotate(Vector3.up, -90);
         }
     }
 
-
+    /// <summary>Clears local preview state and building-on-the-fly mode; does not despawn an already placed network item.</summary>
     public void ErasePlaceable()
     {
             ClearPreviewPoint();
@@ -197,9 +187,8 @@ public class PlacementController : NetworkBehaviour
             _currentObject = null;
             _isPlacing = false;
             if (_playerShoot != null) _playerShoot.IsBuildingOnFly = false;
-        
-    }
 
+    }
 
     void UpdatePlaceable()
     {
@@ -259,81 +248,38 @@ public class PlacementController : NetworkBehaviour
         if (Input.GetMouseButtonDown(0) && _currentObject.activeSelf && !_placementPending)
         {
             if (_previewPoint == null || !IsWithinPlacementRange(_currentObject.transform.position)) { RejectPlacement(); return; }
-            string posAndTag = _currentObject.transform.position.x.ToString() + "_" + _currentObject.transform.position.z.ToString() + "_" + _currentTag;
+            GridPoint candidate = _game.World.FindBuildingPoint(_currentObject.transform.position, _currentTag);
             if(placeableCount[_placeableIndex] > 0)
             {
-                if (GameManager.Instance.BuildingPoints.ContainsKey(posAndTag)
-                    && GameManager.Instance.BuildingPoints[posAndTag].Buildable
+                if (candidate != null && candidate.Buildable
                     )
                 {
-                    if (GameManager.CurrentState == GameManager.GameState.Fighting)
-                        GameManager.TurnOnGridRenders(false);
+                    if (_game.Players.ControlMode == PlayerControlMode.Fighting)
+                        _game.World.TurnOnGridRenders(false);
 
                     Vector3 position = _currentObject.transform.position;
                     Quaternion rotation = _currentObject.transform.rotation;
                     ClearPreviewPoint();
                     RestorePreviewMaterials();
                     _placementPending = true;
-                    CmdPlaceEntity(position, rotation, _currentTag, _placeableIndex);
+                    _requests.Place(position, rotation, candidate.Id, _placeableIndex);
                 }
                 else
                     RejectPlacement();
             }
-            else 
+            else
                 RejectPlacement();
         }
     }
 
-    [Command]
-    void CmdPlaceEntity(Vector3 pos, Quaternion rot, string tag, int placeableIndex)
-    {
-        string posAndTag = pos.x.ToString() + "_" + pos.z.ToString() + "_" + tag;
-        GridPoint point;
-        if (placeableIndex < 0 || placeableIndex >= _placeableObject.Count
-            || !IsWithinPlacementRange(pos)
-            || !GameManager.Instance.BuildingPoints.TryGetValue(posAndTag, out point) || !point.Buildable)
-        {
-            TargetPlacementResult(connectionToClient, placeableIndex, false);
-            return;
-        }
-        GameObject placeableObject = Instantiate(_placeableObject[placeableIndex], pos, rot);
-        switch (placeableIndex)
-        {
-            case INDEX_OF_SNARES:
-                Snares snares = placeableObject.GetComponent<Snares>();
-                snares.InitialPosAndTag = posAndTag;
-                break;
-            case INDEX_OF_BEAR:
-                TeddyBearServer teddyBearServer = placeableObject.GetComponent<TeddyBearServer>();
-                teddyBearServer.InitialPosAndTag = posAndTag;
-                teddyBearServer.GetComponentInChildren<SpriteRenderer>().enabled = false;
-                break;
-            case INDEX_OF_BARREL:
-                Barrel barrel = placeableObject.GetComponentInChildren<Barrel>();
-                barrel.InitialPosAndTag = posAndTag;
-                break;
-        }
-        //NetworkServer.SpawnWithClientAuthority(placeableObject, connectionToClient);
-        NetworkServer.Spawn(placeableObject);
-        point.Buildable = false;
-        RpcPlaceEntity(posAndTag);
-        TargetPlacementResult(connectionToClient, placeableIndex, true);
-    }
-
-    [ClientRpc]
-    void RpcPlaceEntity(string posAndTag)
-    {
-        GameManager.Instance.BuildingPoints[posAndTag].Buildable = false;
-    }
-
-    [TargetRpc]
-    void TargetPlacementResult(NetworkConnectionToClient target, int index, bool accepted)
+    /// <summary>Applies the owning player acknowledgement: spend one item on acceptance, otherwise retain inventory and show rejection.</summary>
+    public void ResolvePlacement(int index, bool accepted)
     {
         _placementPending = false;
         if (!accepted)
         {
-            if (_currentObject != null && GameManager.CurrentState == GameManager.GameState.Fighting)
-                GameManager.TurnOnGridRenders(true);
+            if (_currentObject != null && _game.Players.ControlMode == PlayerControlMode.Fighting)
+                _game.World.TurnOnGridRenders(true);
             RejectPlacement();
             return;
         }
@@ -347,7 +293,8 @@ public class PlacementController : NetworkBehaviour
             _placeableIndex = returnFirstAvailableBiggerIndex();
     }
 
-    bool IsWithinPlacementRange(Vector3 position)
+    /// <summary>Checks the authored horizontal two-tile radius around this player; height does not extend range.</summary>
+    public bool IsWithinPlacementRange(Vector3 position)
     {
         Vector3 delta = position - transform.position;
         float radius = PlacementRadiusInTiles * GridTileSize;
@@ -356,55 +303,58 @@ public class PlacementController : NetworkBehaviour
 
     void MoveToMouse()
     {
-        if (_currentObject != null)
+        if (_currentObject == null) return;
+        _currentCamera = _game.Players.ControlMode == PlayerControlMode.Building ? _buildingCamera : _actionCamera;
+        Ray ray = _game.Players.ControlMode == PlayerControlMode.Fighting
+            ? _currentCamera.ViewportPointToRay(new Vector3(.5f, .5f, 0f))
+            : _currentCamera.ScreenPointToRay(Input.mousePosition);
+        if (!Physics.Raycast(ray, out var hit, PreviewRayDistance, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
         {
-            _currentCamera = GameManager.CurrentState == GameManager.GameState.Building ? _buildingCamera : _actionCamera;
-            // Locked-pointer coordinates can be outside a scaled Game view on Linux.
-            // FPS placement follows the crosshair; the overhead view uses the pointer.
-            Ray ray = GameManager.CurrentState == GameManager.GameState.Fighting
-                ? _currentCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0))
-                : _currentCamera.ScreenPointToRay(Input.mousePosition);
-
-            RaycastHit hitInfo;
-            if (Physics.Raycast(ray, out hitInfo, 100f, LayerMask.GetMask("Default"), QueryTriggerInteraction.Ignore))
-            {
-                _x = Mathf.Round(hitInfo.point.x * _reverseGrid) / _reverseGrid;
-                _y = Mathf.Round(hitInfo.point.z * _reverseGrid) / _reverseGrid;
-                _currentObject.transform.position = new Vector3(_x, hitInfo.transform.position.y, _y);
-                if (!IsWithinPlacementRange(_currentObject.transform.position))
-                {
-                    ClearPreviewPoint();
-                    _currentObject.SetActive(false);
-                    return;
-                }
-                _currentTag = hitInfo.collider.tag;
-                string key = _x.ToString() + "_" + _y.ToString() + "_" + _currentTag;
-                GridPoint point;
-                if (GameManager.Instance.BuildingPoints.TryGetValue(key, out point))
-                {
-                    if (_previewPoint != point)
-                    {
-                        ClearPreviewPoint();
-                        _previewPoint = point;
-                        point.SetPlacementPreview(true);
-                    }
-                    _currentObject.SetActive(true);
-                    return;
-                }
-                // Keep the original model preview over a floor even where no grid cell
-                // exists (e.g. the capture zone). It remains impossible to place there.
-                foreach (var room in GameManager.Instance.Rooms)
-                    if (room.CompareTag(_currentTag))
-                    {
-                        ClearPreviewPoint();
-                        _currentObject.SetActive(true);
-                        return;
-                    }
-                //_currentObject.transform.rotation = Quaternion.FromToRotation(Vector3.up, hitInfo.normal);
-            }
-            ClearPreviewPoint();
-            _currentObject.SetActive(false);
+            HidePreview();
+            return;
         }
+        _x = Mathf.Round(hit.point.x * _reverseGrid) / _reverseGrid;
+        _y = Mathf.Round(hit.point.z * _reverseGrid) / _reverseGrid;
+        _currentObject.transform.position = new Vector3(_x, hit.transform.position.y, _y);
+        if (!IsWithinPlacementRange(_currentObject.transform.position))
+        {
+            HidePreview();
+            return;
+        }
+        _currentTag = hit.collider.tag;
+        var point = _game.World.FindBuildingPoint(new Vector3(_x, 0f, _y), _currentTag);
+        if (point != null) ShowGridPreview(point);
+        else if (IsRoomSurface(_currentTag))
+        {
+            // Keep the authored preview outside cells (e.g. a capture area), without allowing placement.
+            ClearPreviewPoint();
+            _currentObject.SetActive(true);
+        }
+        else HidePreview();
+    }
+
+    private void ShowGridPreview(GridPoint point)
+    {
+        if (_previewPoint != point)
+        {
+            ClearPreviewPoint();
+            _previewPoint = point;
+            point.SetPlacementPreview(true);
+        }
+        _currentObject.SetActive(true);
+    }
+
+    private bool IsRoomSurface(string surfaceTag)
+    {
+        foreach (var room in _game.World.Rooms)
+            if (room.CompareTag(surfaceTag)) return true;
+        return false;
+    }
+
+    private void HidePreview()
+    {
+        ClearPreviewPoint();
+        _currentObject.SetActive(false);
     }
 
     void ClearPreviewPoint()
@@ -416,7 +366,7 @@ public class PlacementController : NetworkBehaviour
     void OnDisable()
     {
         ErasePlaceable();
-        if (_playerShoot != null && isLocalPlayer && GameManager.Instance != null) GameManager.TurnOnGridRenders(false);
+        if (_playerShoot != null && isLocalPlayer && _game != null) _game.World.TurnOnGridRenders(false);
     }
 
     void HandleKeys()
@@ -426,108 +376,80 @@ public class PlacementController : NetworkBehaviour
             if (Input.GetKeyDown(KeyCode.T))
             {
                 ErasePlaceable();
-                GameManager.TurnOnGridRenders(false);
+                _game.World.TurnOnGridRenders(false);
             }
             return;
         }
-        switch (GameManager.CurrentState)
+        switch (_game.Players.ControlMode)
         {
-            case GameManager.GameState.Fighting:
-
-                if (Input.GetKeyDown(KeyCode.T))
-                {
-                    if (!_playerShoot.IsBuildingOnFly)
-                    {
-                        GameManager.TurnOnGridRenders(true);
-                        if (!hasNoPlaceable())
-                        {
-                            if (placeableCount[_placeableIndex] <= 0) _placeableIndex = returnFirstAvailableBiggerIndex();
-                            UpdatePlaceable();
-                        }
-                        _playerShoot.IsBuildingOnFly = true;
-                    }
-                    else
-                    {
-                        GameManager.TurnOnGridRenders(false);
-                        ErasePlaceable();
-                    }
-
-                }
-                if (Input.GetKeyDown(KeyCode.Return) && GameManager.IsListeningForReady)
-                {
-                    ErasePlaceable();
-                    GameManager.IsListeningForReady = false;
-                    CmdRegisterBeingReady();
-
-                }
-                break;
-
-            case GameManager.GameState.Building:
-            
-                float xDelta = 0f, zDelta = 0f, rotationDelta = 0f;
-
-                if (!_isPlacing)
-                {
-                    float zoomDelta = Input.GetAxis("Mouse ScrollWheel");
-                    if (zoomDelta != 0f) AdjustZoom(zoomDelta);                    
-                }
-                
-
-
-                if (Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.Comma)) rotationDelta++;
-                if (Input.GetKey(KeyCode.E) || Input.GetKey(KeyCode.Period)) rotationDelta--;
-
-                if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W) || Input.mousePosition.y >= Screen.height - _scrollBorderThickness) zDelta++;
-                if (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S) || Input.mousePosition.y <= _scrollBorderThickness) zDelta--;
-                if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D) || Input.mousePosition.x >= Screen.width - _scrollBorderThickness) xDelta++;
-                if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A) || Input.mousePosition.x <= _scrollBorderThickness) xDelta--;
-
-                if (xDelta != 0f || zDelta != 0f) AdjustPositionMouse(xDelta, zDelta);
-                if (rotationDelta != 0f) AdjustRotationKeyboard(rotationDelta);
-
-                if (Input.GetKeyDown(KeyCode.T))
-                {
-                    if (!hasNoPlaceable())
-                    {
-                        if (_currentObject == null)
-                        {
-                            if (placeableCount[_placeableIndex] <= 0) _placeableIndex = returnFirstAvailableBiggerIndex();
-                            UpdatePlaceable();
-                            _isPlacing = true;
-                        }
-                        else
-                        {
-                            ErasePlaceable();
-                        }
-                    }
-                }
-
-                
-                break;
+            case PlayerControlMode.Fighting: HandleCombatKeys(); break;
+            case PlayerControlMode.Building: HandleBuildingKeys(); break;
         }
     }
 
-    [Command]
-    void CmdRegisterBeingReady()
+    private void HandleCombatKeys()
     {
-        GameManager.Instance.ReadyPlayersCnt++;
-        // >= : a player leaving the lobby after others got ready used to block the start forever.
-        if (GameManager.Instance.ReadyPlayersCnt >= GameManager.Players.Count)
-           RpcRegisterLocalPlayerBeingReady(); // rpc bedzie wywolywana na obiketach symbolizujacych ostatniego playera ktory zadeklarowal sie 'ready'
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            if (!_playerShoot.IsBuildingOnFly)
+            {
+                _game.World.TurnOnGridRenders(true);
+                ShowAvailablePreview();
+                _playerShoot.IsBuildingOnFly = true;
+            }
+            else
+            {
+                _game.World.TurnOnGridRenders(false);
+                ErasePlaceable();
+            }
+        }
+        if (Input.GetKeyDown(KeyCode.Return) && _game.Players.IsListeningForReady)
+        {
+            ErasePlaceable();
+            _game.Players.IsListeningForReady = false;
+            CmdRegisterBeingReady();
+        }
     }
 
-    [ClientRpc]
-    void RpcRegisterLocalPlayerBeingReady() 
+    private void ShowAvailablePreview()
     {
-        if (GameManager.Instance.CurrentMachState != GameManager.MatchState.Lobby) return;
-        /*PlacementController localPlayer = GameManager.LocalPlayer.GetComponent<PlacementController>(); // dlatego musimy wyluskac local playera
-        localPlayer._currentCamera = localPlayer._actionCamera;
-        ClockManager.canCount = true;
-        if (localPlayer._currentObject != null) Destroy(localPlayer._currentObject);
-        GameManager.CurrentState = GameManager.GameState.Fighting;*/
-        GameManager.Instance.TeleportToRoom1();
-        
+        if (hasNoPlaceable()) return;
+        if (placeableCount[_placeableIndex] <= 0) _placeableIndex = returnFirstAvailableBiggerIndex();
+        UpdatePlaceable();
     }
+
+    private void HandleBuildingKeys()
+    {
+        HandleBuildingCamera();
+        if (!Input.GetKeyDown(KeyCode.T) || hasNoPlaceable()) return;
+        if (_currentObject != null)
+        {
+            ErasePlaceable();
+            return;
+        }
+        ShowAvailablePreview();
+        _isPlacing = true;
+    }
+
+    private void HandleBuildingCamera()
+    {
+        if (!_isPlacing)
+        {
+            float zoomDelta = Input.GetAxis(GameInput.Scroll);
+            if (zoomDelta != 0f) AdjustZoom(zoomDelta);
+        }
+        float xDelta = 0f, zDelta = 0f, rotationDelta = 0f;
+        if (Input.GetKey(KeyCode.Q) || Input.GetKey(KeyCode.Comma)) rotationDelta++;
+        if (Input.GetKey(KeyCode.E) || Input.GetKey(KeyCode.Period)) rotationDelta--;
+        if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.W) || Input.mousePosition.y >= Screen.height - _scrollBorderThickness) zDelta++;
+        if (Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S) || Input.mousePosition.y <= _scrollBorderThickness) zDelta--;
+        if (Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.D) || Input.mousePosition.x >= Screen.width - _scrollBorderThickness) xDelta++;
+        if (Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.A) || Input.mousePosition.x <= _scrollBorderThickness) xDelta--;
+        if (xDelta != 0f || zDelta != 0f) AdjustPositionMouse(xDelta, zDelta);
+        if (rotationDelta != 0f) AdjustRotationKeyboard(rotationDelta);
+    }
+
+    void CmdRegisterBeingReady() { _requests.Ready(); }
 
     void AdjustPositionMouse(float xDelta, float zDelta)
     {
@@ -535,10 +457,8 @@ public class PlacementController : NetworkBehaviour
         float distance = Mathf.Lerp(_moveSpeedMinZoom, _moveSpeedMaxZoom, _zoom) * Time.deltaTime;
         Vector3 position = _buildingCameraHolder.localPosition;
         position += direction * distance;
-        //transform.localPosition = ClampPosition(position);
         _buildingCameraHolder.localPosition = position;
     }
-
 
     void AdjustZoom(float delta)
     {
@@ -550,7 +470,6 @@ public class PlacementController : NetworkBehaviour
 
     }
 
-    
     void AdjustRotationKeyboard(float angle)
     {
         angle *= _rotationSpeedKeyboard * Time.deltaTime;

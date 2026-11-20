@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 
+/// <summary>Controls the opening presentation and authored contents of an older chest prefab.</summary>
 public class Chest : MonoBehaviour
 {
     public bool active;
@@ -15,8 +14,7 @@ public class Chest : MonoBehaviour
     private Transform _lidOpen;
     private GameObject _lid;
     private bool _isSet = false;
-    
-    
+
     private void Start()
     {
         _lid = transform.GetChild(0).GetChild(2).gameObject;

@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 
+/// <summary>Switches between the authored preparation and invasion music clips.</summary>
 public class MusicManager : MonoBehaviour
 {
     [SerializeField] private AudioClip _slow;

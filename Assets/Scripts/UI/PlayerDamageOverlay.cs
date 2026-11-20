@@ -1,10 +1,11 @@
 using UnityEngine;
 
 // Local presentation of replicated health; no additional damage RPCs or render passes.
+/// <summary>Draws local damage pulses and persistent low-health edges from replicated player health.</summary>
 public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
 {
     HealthBar _healthBar;
-    PlayerManager _player;
+    Nightmare.Core.Ports.IHealth _player;
     float _previousHealth;
     float _opacity;
     float _lastDamageAt;
@@ -39,7 +40,7 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
         if (player != _player)
         {
             _player = player;
-            _previousHealth = player != null ? player._currentHealth : 0f;
+            _previousHealth = player != null ? player.CurrentHealth : 0f;
             ResetEffect();
         }
         bool hidden = player == null || player.IsDead || !_healthBar.isActiveAndEnabled
@@ -49,15 +50,15 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
             ResetEffect();
         else
         {
-            float ratio = Mathf.Clamp01(player._currentHealth / Mathf.Max(1f, player._maxHealth));
-            if (player._currentHealth < _previousHealth - 0.0001f)
+            float ratio = Mathf.Clamp01(player.CurrentHealth / Mathf.Max(1f, player.MaximumHealth));
+            if (player.CurrentHealth < _previousHealth - 0.0001f)
             {
                 float danger = 1f - ratio;
                 _pulseStrength = 0.04f + 0.66f * danger * danger;
                 _pulseOpacity = _pulseStrength;
                 _lastDamageAt = Time.unscaledTime;
             }
-            else if (player._currentHealth > _previousHealth)
+            else if (player.CurrentHealth > _previousHealth)
                 _pulseOpacity = 0f;
             else if (Time.unscaledTime - _lastDamageAt > 0.12f)
                 _pulseOpacity = Mathf.MoveTowards(_pulseOpacity, 0f, _pulseStrength * Time.unscaledDeltaTime / 0.55f);
@@ -68,7 +69,7 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
             _opacity = Mathf.Max(_pulseOpacity, _lowHealthOpacity);
         }
 
-        if (player != null) _previousHealth = player._currentHealth;
+        if (player != null) _previousHealth = player.CurrentHealth;
         // CanvasRenderer alpha avoids rebuilding the mesh every fade frame.
         canvasRenderer.SetAlpha(_opacity);
     }

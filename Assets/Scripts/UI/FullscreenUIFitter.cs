@@ -7,6 +7,7 @@ using UnityEngine.UI;
 // screens that are not 16:9 (e.g. 16:10 MacBooks, 4:3, ultrawide) the canvas is taller or wider than
 // that, so those screens floated in the middle with gaps around them. This scales such rects up just
 // enough to cover the whole canvas, like CSS "background-size: cover", without touching other UI.
+/// <summary>Fits authored full-screen artwork to changing aspect ratios without resizing unrelated UI.</summary>
 public class FullscreenUIFitter : MonoBehaviour
 {
     private const float SIZE_TOLERANCE = 0.05f;

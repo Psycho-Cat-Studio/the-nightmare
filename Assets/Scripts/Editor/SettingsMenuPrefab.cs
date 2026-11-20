@@ -4,6 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+/// <summary>Authors the reusable uGUI settings prefab from the existing menu artwork and font.</summary>
 public static class SettingsMenuPrefab
 {
     [MenuItem("The Nightmare/UI/Rebuild settings prefab")]

@@ -6,6 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+/// <summary>Checks and repairs rendering assets for the committed Built-in-to-URP migration.</summary>
 public static class UrpMigrationAudit
 {
     [MenuItem("The Nightmare/URP/Validate build assets")]
@@ -17,11 +18,13 @@ public static class UrpMigrationAudit
             .SelectMany(p => AssetDatabase.GetDependencies(p, true))
             .Concat(AssetDatabase.FindAssets("t:Material", new[] { "Assets" })
                 .Select(AssetDatabase.GUIDToAssetPath).Where(p => p.Contains("/Resources/")))
-            .Where(p => p.EndsWith(".mat")).Distinct().ToArray();
+            .Where(p => p.EndsWith(".mat") || AssetImporter.GetAtPath(p) is ModelImporter).Distinct().ToArray();
         var errors = new System.Collections.Generic.List<string>();
+        int materialCount = 0;
         foreach (string path in paths)
+        foreach (var mat in AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>())
         {
-            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            materialCount++;
             if (mat == null || mat.shader == null || mat.shader.name == "Hidden/InternalErrorShader")
             { errors.Add(path + ": missing shader"); continue; }
             string shader = mat.shader.name;
@@ -36,9 +39,9 @@ public static class UrpMigrationAudit
             if (shader == null || ShaderUtil.ShaderHasError(shader)) errors.Add(name + ": custom shader missing or invalid");
         }
         System.IO.Directory.CreateDirectory("Logs");
-        File.WriteAllLines("Logs/urp-validation.txt", new[] { "URP materials checked: " + paths.Length, "Errors: " + errors.Count }.Concat(errors));
+        File.WriteAllLines("Logs/urp-validation.txt", new[] { "URP materials checked: " + materialCount, "Errors: " + errors.Count }.Concat(errors));
         if (errors.Count != 0) throw new InvalidOperationException(string.Join("\n", errors));
-        Debug.Log("[URP] Validated " + paths.Length + " build/resource materials.");
+        Debug.Log("[URP] Validated " + materialCount + " build/resource materials.");
     }
 
     [MenuItem("The Nightmare/URP/Audit")]

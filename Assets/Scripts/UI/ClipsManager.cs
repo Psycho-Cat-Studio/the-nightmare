@@ -1,8 +1,8 @@
-﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>Displays full reserve magazines from the active weapon ammunition state.</summary>
 public class ClipsManager : MonoBehaviour {
     private List<Image> _clips = new List<Image>();
     public PlayerEquipment player;
@@ -17,8 +17,8 @@ public class ClipsManager : MonoBehaviour {
 
     void Update() {
         if (playerEnabled && player != null && player.getActiveWeapon() != null) {
-            int ratio = (player.getActiveWeapon().CurrentAmmo - player.getActiveWeapon().CurrentMagAmmo) / player.getActiveWeapon().MaxMagAmmo;
-            if (ratio > 4) ratio = 4;
+            int ratio = player.getActiveWeapon().FullReserveMagazines;
+            ratio = Mathf.Clamp(ratio, 0, Mathf.Min(_fullClips, _clips.Count));
 
             for (int i = 0; i < ratio; i++) {
                 _clips[i].enabled = true;

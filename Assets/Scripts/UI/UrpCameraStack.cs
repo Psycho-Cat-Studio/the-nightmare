@@ -12,6 +12,7 @@ using UnityEngine.SceneManagement;
 // "all blue" view). This turns the depth-only cameras into Overlay cameras on the stack of the base
 // camera rendering to the same target. Reflection keeps it free of compile-time URP references (the CI
 // compile check), and it does nothing under the built-in pipeline.
+/// <summary>Maintains the native world/weapon camera stack and exposes its weapon-camera binding.</summary>
 public class UrpCameraStack : MonoBehaviour
 {
     private static readonly Type DataType =

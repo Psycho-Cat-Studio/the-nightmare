@@ -7,9 +7,12 @@ using System.Reflection;
 using UnityEngine;
 
 // Two separate player launches prove disk persistence, rather than reapplying in-memory prefs.
+/// <summary>Runs opt-in two-launch checks of display and graphics preference persistence, restoring captured preferences.</summary>
 public class DisplayVerification : MonoBehaviour
 {
+    /// <summary>Stores one preference value and its original presence for display-test restoration.</summary>
     [Serializable] class Entry { public string key; public bool present; public bool floating; public int integer; public float number; }
+    /// <summary>Serializes the preferences that must survive the two display-verification launches.</summary>
     [Serializable] class Backup { public List<Entry> entries = new List<Entry>(); }
     const string BackupPath = "Logs/display-preferences-backup.json";
     static readonly string[] Flags = { "bloom", "vignette", "autoExposure", "depthOfField", "motionBlur", "colorGrading", "chromatic", "dithering", "ambientOcclusion", "aa" };
@@ -28,8 +31,8 @@ public class DisplayVerification : MonoBehaviour
     {
         Require(!File.Exists(BackupPath), "Previous preference backup still exists; run -verifyDisplayRead to restore it first.");
         var backup = new Backup();
-        foreach (string key in Flags.Select(k => "graphics." + k).Concat(new[] { "graphics.exposure", "settings.quality", "settings.maxFps", "display.width", "display.height", "display.mode", "display.renderWidth", "display.renderHeight" }))
-            backup.entries.Add(new Entry { key = key, present = PlayerPrefs.HasKey(key), floating = key == "graphics.exposure", integer = PlayerPrefs.GetInt(key), number = PlayerPrefs.GetFloat(key) });
+        foreach (string key in Flags.Select(k => "graphics." + k).Concat(new[] { GraphicsPreferenceKeys.Exposure, "settings.quality", "settings.maxFps", GraphicsPreferenceKeys.DisplayWidth, GraphicsPreferenceKeys.DisplayHeight, GraphicsPreferenceKeys.DisplayMode, GraphicsPreferenceKeys.RenderWidth, GraphicsPreferenceKeys.RenderHeight }))
+            backup.entries.Add(new Entry { key = key, present = PlayerPrefs.HasKey(key), floating = key == GraphicsPreferenceKeys.Exposure, integer = PlayerPrefs.GetInt(key), number = PlayerPrefs.GetFloat(key) });
         Directory.CreateDirectory("Logs");
         File.WriteAllText(BackupPath, JsonUtility.ToJson(backup, true));
     }

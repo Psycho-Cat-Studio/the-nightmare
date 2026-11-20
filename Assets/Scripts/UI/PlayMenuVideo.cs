@@ -1,9 +1,9 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
 
+/// <summary>Prepares and displays the menu video while keeping unprepared frames hidden.</summary>
 public class PlayMenuVideo : MonoBehaviour
 {
     [SerializeField] private RawImage _image;

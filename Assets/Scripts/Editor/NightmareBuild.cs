@@ -7,6 +7,7 @@ using UnityEngine;
 
 // Builds the game for desktop platforms. Used by CI (game-ci/unity-builder calls
 // BuildFromCommandLine) and from the "The Nightmare/Build" menu for local builds.
+/// <summary>Builds desktop players after rendering, content and saved-network-identity validation.</summary>
 public static class NightmareBuild
 {
     private const string BUILD_NAME = "TheNightmare";
@@ -70,6 +71,7 @@ public static class NightmareBuild
         // URP conversion is committed; fail early if a new asset reintroduces built-in shaders.
         UrpMigrationAudit.ValidateBuild();
         // Networked prefabs / scene objects need Mirror ids before they are baked into the player.
+        ContentValidation.ValidateBuildContent();
         NetworkIdBaker.BakeAll();
         PlayerSettings.bundleVersion = version;
         if (target == BuildTarget.StandaloneOSX && !path.EndsWith(".app")) path += ".app";

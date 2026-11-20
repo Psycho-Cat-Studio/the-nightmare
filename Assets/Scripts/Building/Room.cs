@@ -1,90 +1,49 @@
-﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Authored scene references. Match rules and global registration belong to the composition root.</summary>
 public class Room : MonoBehaviour
 {
-    private List<GameObject> _buildingPoints = new List<GameObject>();
-
     [SerializeField] private int _width;
-    public int Width { get { return _width; } }
     [SerializeField] private int _height;
-    public int Height { get { return _height; } }
     [SerializeField] private int _areas;
-    public int Areas { get { return _areas; } }
     [SerializeField] private int _enemySpawnPointsCounter;
-    public int EnemySpawnPointsCounter { get { return _enemySpawnPointsCounter; } }
-    private List<GridPoint> _gridPoints = new List<GridPoint>();
-    private List<CaptureArea> _captureAreas = new List<CaptureArea>();
-    public List<CaptureArea> CaptureAreas { get { return _captureAreas; } }
-    private List<GameObject> _enemySpawnPoints = new List<GameObject>();
-    public List<GameObject> EnemySpawnPoint { get { return _enemySpawnPoints; } }
-    public bool roomCaptured;
     [SerializeField] private bool _hasChest;
-    public bool HasChest { get { return _hasChest; } set { _hasChest = value; } }
+    [SerializeField] private Transform _gridRoot;
+    [SerializeField] private Transform _captureRoot;
+    [SerializeField] private Transform _spawnRoot;
+    [SerializeField] private GameObject _renderRoot;
+    private readonly List<GridPoint> _gridPoints = new List<GridPoint>();
+    private readonly List<CaptureArea> _captureAreas = new List<CaptureArea>();
+    private readonly List<GameObject> _enemySpawnPoints = new List<GameObject>();
+    public int Width => _width;
+    public int Height => _height;
+    public int Areas => _areas;
+    public int EnemySpawnPointsCounter => _enemySpawnPointsCounter;
+    public IReadOnlyList<GridPoint> GridPoints => _gridPoints;
+    public List<CaptureArea> CaptureAreas => _captureAreas;
+    public List<GameObject> EnemySpawnPoint => _enemySpawnPoints;
+    public GameObject GridRenderRoot => _renderRoot != null ? _renderRoot : transform.GetChild(0).gameObject;
+    public bool HasChest { get => _hasChest; set => _hasChest = value; }
 
+    /// <summary>Binds generated roots explicitly so optional chest children do not affect room hierarchy lookup.</summary>
+    internal void BindGeneratedRoots(Transform points, Transform areas, Transform spawns, GameObject render)
+    {
+        _gridRoot = points;
+        _captureRoot = areas;
+        _spawnRoot = spawns;
+        _renderRoot = render;
+    }
 
-    public enum RoomPhase { Prepare, Defend, Collect};
-    private RoomPhase _currentRoomPhase = RoomPhase.Prepare;
-    public RoomPhase CurrentRoomPhase { get { return _currentRoomPhase; } set { _currentRoomPhase = value; } }
-    
-    
-
+    /// <summary>Rebuilds this room cached grid/capture/spawn collections from authored roots; repeated calls replace rather than duplicate entries.</summary>
     public void Setup()
     {
-        Transform points = transform.GetChild(1);
-        for (int i = 0; i < points.childCount; i++)
-        {
-            _gridPoints.Add(points.GetChild(i).GetComponent<GridPoint>());
-        }
-        Transform areas = transform.GetChild(3);
-        for (int i = 0; i < areas.childCount; i++)
-        {
-            GameManager.Instance.EnemySpawnPoints.Add(areas.GetChild(i).name, areas.GetChild(i));
-            _enemySpawnPoints.Add(areas.GetChild(i).gameObject);
-        }
-        GameManager.GridRenderes.Add(transform.GetChild(0).gameObject);
-
-        Transform captures = transform.GetChild(2);
-        for (int i = 0; i < captures.childCount; i++)
-        {
-            _captureAreas.Add(captures.GetChild(i).GetComponent<CaptureArea>());
-        }
+        _gridPoints.Clear(); _captureAreas.Clear(); _enemySpawnPoints.Clear();
+        var grid = _gridRoot != null ? _gridRoot : transform.GetChild(1);
+        var captures = _captureRoot != null ? _captureRoot : transform.GetChild(2);
+        var spawns = _spawnRoot != null ? _spawnRoot : transform.GetChild(3);
+        _gridPoints.AddRange(grid.GetComponentsInChildren<GridPoint>(true));
+        _captureAreas.AddRange(captures.GetComponentsInChildren<CaptureArea>(true));
+        foreach (Transform point in spawns) _enemySpawnPoints.Add(point.gameObject);
     }
-
-    void Update()
-    {
-       /* bool check = true;
-        foreach (CaptureArea capture in _captureAreas)
-        {
-            if (!capture._isCaptured)
-            {
-                check = false;
-                break;
-            }
-        }
-
-        if (check && !roomCaptured)
-        {
-            roomCaptured = true;
-            foreach (GameObject spawn in _enemySpawnPoints)
-            {
-                GameManager instance = GameManager.Instance;
-                instance.EnemySpawnPoints.Remove(spawn.transform.name);
-                spawn.SetActive(false);
-            }
-        }
-        else if (!check && roomCaptured)
-        {
-            roomCaptured = false;
-            foreach (GameObject spawn in _enemySpawnPoints)
-            {
-                GameManager instance = GameManager.Instance;
-                if (!instance.EnemySpawnPoints.ContainsKey(spawn.transform.name)) instance.EnemySpawnPoints.Add(spawn.transform.name, spawn.transform);
-                spawn.SetActive(true);
-            }
-
-        }*/
-    }
-    
 }

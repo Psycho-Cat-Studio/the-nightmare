@@ -9,9 +9,15 @@ using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 // Opt-in integration test: launch a player with -verifyGraphics. Never runs in normal gameplay.
-public class GraphicsVerification : MonoBehaviour
+/// <summary>Runs opt-in native rendering, display and candle-lighting checks with preference and scene-state restoration.</summary>
+public class GraphicsVerification : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
+    /// <summary>Collects graphics verification outcomes, failure details and completed checks for the local JSON report.</summary>
     [Serializable] class Report { public bool passed; public string error; public List<string> checks = new List<string>(); }
+    /// <summary>Captures a preference value and existence flag for restoring the graphics test environment.</summary>
     class Preference { public string key; public bool present; public bool floating; public int integer; public float number; }
     readonly List<Preference> _preferences = new List<Preference>();
     readonly Report _report = new Report();
@@ -36,10 +42,13 @@ public class GraphicsVerification : MonoBehaviour
         _quality = QualitySettings.GetQualityLevel(); _width = Screen.width; _height = Screen.height;
         _mode = Screen.fullScreenMode; _pause = PauseGame.menuActive;
         _renderScale = GraphicsPreferences.RenderScale;
-        string[] ints = { "bloom", "vignette", "autoExposure", "depthOfField", "motionBlur", "colorGrading", "chromatic", "dithering", "ambientOcclusion", "aa" };
-        foreach (string key in ints) SaveKey("graphics." + key, false);
-        foreach (string key in new[] { "exposure" }) SaveKey("graphics." + key, true);
-        foreach (string key in new[] { "display.width", "display.height", "display.mode", "display.renderWidth", "display.renderHeight", "settings.quality" }) SaveKey(key, false);
+        string[] ints = { GraphicsPreferenceKeys.Bloom, GraphicsPreferenceKeys.Vignette, GraphicsPreferenceKeys.AutoExposure,
+            GraphicsPreferenceKeys.DepthOfField, GraphicsPreferenceKeys.MotionBlur, GraphicsPreferenceKeys.Tonemapping,
+            GraphicsPreferenceKeys.Chromatic, GraphicsPreferenceKeys.Dithering, GraphicsPreferenceKeys.AmbientOcclusion,
+            GraphicsPreferenceKeys.AntiAliasing };
+        foreach (string key in ints) SaveKey(key, false);
+        SaveKey(GraphicsPreferenceKeys.Exposure, true);
+        foreach (string key in new[] { GraphicsPreferenceKeys.DisplayWidth, GraphicsPreferenceKeys.DisplayHeight, GraphicsPreferenceKeys.DisplayMode, GraphicsPreferenceKeys.RenderWidth, GraphicsPreferenceKeys.RenderHeight, "settings.quality" }) SaveKey(key, false);
     }
     void SaveKey(string key, bool floating)
     {
@@ -64,6 +73,7 @@ public class GraphicsVerification : MonoBehaviour
     }
     IEnumerator Start()
     {
+        Directory.CreateDirectory("Logs");
         Capture();
         GraphicsPreferences.SetRenderScale(1f);
         var test = Run();
@@ -77,7 +87,6 @@ public class GraphicsVerification : MonoBehaviour
         }
         Restore();
         _report.passed = string.IsNullOrEmpty(_report.error);
-        Directory.CreateDirectory("Logs");
         File.WriteAllText("Logs/graphics-verification.json", JsonUtility.ToJson(_report, true));
         if (_report.passed) Debug.Log("[Graphics verification] PASS: " + string.Join("; ", _report.checks));
         else Debug.LogError("[Graphics verification] FAIL: " + _report.error);
@@ -91,15 +100,18 @@ public class GraphicsVerification : MonoBehaviour
     }
     void VerifySingleShot()
     {
-        var shoot = GameManager.LocalPlayer.GetComponent<PlayerShoot>();
+        var shoot = _game.Players.LocalPlayer.GetComponent<PlayerShoot>();
         var weapon = shoot.Equipment.getActiveWeapon();
         int mag = weapon.CurrentMagAmmo, ammo = weapon.CurrentAmmo;
         var mode = weapon.Mode;
         var state = weapon.State;
         var latch = typeof(PlayerShoot).GetField("_shootingDone", BindingFlags.Instance | BindingFlags.NonPublic);
         bool latched = (bool)latch.GetValue(shoot);
+        var controller = _game.Players.LocalPlayer.GetComponent<PlayerController>();
+        bool controllerEnabled = controller.enabled;
         try
         {
+            controller.enabled = true;
             weapon.Mode = Weapon.FireMode.single;
             latch.SetValue(shoot, false);
             var fire = typeof(PlayerShoot).GetMethod("Shoot", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -110,6 +122,7 @@ public class GraphicsVerification : MonoBehaviour
         }
         finally
         {
+            controller.enabled = controllerEnabled;
             weapon.CurrentMagAmmo = mag; weapon.CurrentAmmo = ammo;
             weapon.Mode = mode; weapon.State = state; latch.SetValue(shoot, latched);
         }
@@ -138,7 +151,7 @@ public class GraphicsVerification : MonoBehaviour
             camera.targetTexture = target;
             var data = UrpAccess.CameraData(camera);
             UrpAccess.Set(data, "renderPostProcessing", true);
-            UrpAccess.Set(data, "volumeLayerMask", (LayerMask)(1 << LayerMask.NameToLayer("PostFX World")));
+            UrpAccess.Set(data, "volumeLayerMask", (LayerMask)(1 << LayerMask.NameToLayer(GameLayers.PostFxWorld)));
             float[] sums = new float[2];
             for (int pass = 0; pass < 2; pass++)
             {
@@ -164,22 +177,42 @@ public class GraphicsVerification : MonoBehaviour
     }
     IEnumerator Run()
     {
-        SceneManager.LoadScene("LobbyTests");
+        // Flatten steps here: exceptions must reach Start's existing catch/Restore path.
+        foreach (var wait in StartVerificationHost()) yield return wait;
+        var owner = RuntimeGraphics.Instance;
+        var source = _game.Players.LocalPlayer.GetComponent<PlayerSetup>().ActionCamera;
+        var weapon = UrpCameraStack.WeaponCamera(source);
+        VerifyCameraStack(source, weapon);
+        foreach (var wait in VerifyVolumeToggles(owner)) yield return wait;
+        foreach (var wait in VerifyAmbientOcclusion(owner)) yield return wait;
+        foreach (var wait in VerifyAntialiasing(owner, source, weapon)) yield return wait;
+        foreach (var wait in VerifyQualityLevels()) yield return wait;
+        foreach (var wait in VerifyExposure(owner, source)) yield return wait;
+        foreach (var wait in VerifyReferenceRendering(owner)) yield return wait;
+        foreach (var wait in VerifySettingsMenu()) yield return wait;
+        foreach (var wait in VerifyCandleLighting()) yield return wait;
+        _report.checks.Add("PASS");
+    }
+
+    private IEnumerable StartVerificationHost()
+    {
+        SceneManager.LoadScene(GameScenes.Lobby);
         float deadline = Time.realtimeSinceStartup + 45;
         while (CustomNetworkManager.Instance == null) { Require(Time.realtimeSinceStartup < deadline, "Lobby timeout"); yield return null; }
         CustomNetworkManager.Instance.Host("Graphics verification", 7799);
-        while (GameManager.LocalPlayer == null || RuntimeGraphics.Instance == null) { Require(Time.realtimeSinceStartup < deadline, "Player timeout"); yield return null; }
+        while (_game == null || _game.Players.LocalPlayer == null || RuntimeGraphics.Instance == null) { Require(Time.realtimeSinceStartup < deadline, "Player timeout"); yield return null; }
         foreach (var screens in UnityEngine.Object.FindObjectsByType<ButtonsControll>()) { screens.SkipWelcomeScreen(); screens.SkipControls(); }
         yield return new WaitForSecondsRealtime(1);
         _width = Screen.width; _height = Screen.height; _mode = Screen.fullScreenMode;
         foreach (var type in new[] { typeof(PlayerController), typeof(PlayerMotor), typeof(PlayerShoot), typeof(PlayerEquipment), typeof(PlacementController) })
         {
-            var behaviour = GameManager.LocalPlayer.GetComponent(type) as Behaviour;
+            var behaviour = _game.Players.LocalPlayer.GetComponent(type) as Behaviour;
             if (behaviour != null && behaviour.enabled) { _disabled.Add(behaviour); behaviour.enabled = false; }
         }
-        var owner = RuntimeGraphics.Instance;
-        var source = GameManager.LocalPlayer.GetComponent<PlayerSetup>().ActionCamera;
-        var weapon = UrpCameraStack.WeaponCamera(source);
+    }
+
+    private void VerifyCameraStack(Camera source, Camera weapon)
+    {
         Require(weapon != null && weapon.targetTexture == null, "Weapon must render into the native camera stack");
         var stack = UrpAccess.Get(UrpAccess.CameraData(source), "cameraStack") as List<Camera>;
         Require(stack != null && stack.Contains(weapon), "Local weapon camera missing from world stack");
@@ -188,6 +221,10 @@ public class GraphicsVerification : MonoBehaviour
             && (bool)UrpAccess.Get(UrpAccess.CameraData(weapon), "renderPostProcessing"), "Shared post effects must run once");
         VerifySingleShot();
         _report.checks.Add("Native Base/Overlay stack; single-click pistol consumes one round and holding does not repeat");
+    }
+
+    private IEnumerable VerifyVolumeToggles(RuntimeGraphics owner)
+    {
         foreach (var pair in new[] { "Bloom:Bloom", "Vignette:Vignette", "DepthOfField:DepthOfField", "MotionBlur:MotionBlur", "Tonemapping:Tonemapping", "ChromaticAberration:ChromaticAberration" })
         {
             var names = pair.Split(':');
@@ -201,6 +238,10 @@ public class GraphicsVerification : MonoBehaviour
             }
         }
         _report.checks.Add("Every shared Volume toggle applies live");
+    }
+
+    private IEnumerable VerifyAmbientOcclusion(RuntimeGraphics owner)
+    {
         foreach (bool enabled in new[] { false, true })
         {
             GraphicsPreferences.AmbientOcclusion = enabled;
@@ -212,6 +253,10 @@ public class GraphicsVerification : MonoBehaviour
             var features = (IList)UrpAccess.Get(data.GetValue(0), "rendererFeatures");
             Require(features.Cast<object>().Any(f => f != null && f.GetType().Name == "ScreenSpaceAmbientOcclusion" && (bool)UrpAccess.Get(f, "isActive") == enabled), "Shared AO toggle failed");
         }
+    }
+
+    private IEnumerable VerifyAntialiasing(RuntimeGraphics owner, Camera source, Camera weapon)
+    {
         for (int aa = 0; aa < 2; aa++)
         {
             GraphicsPreferences.AntiAliasing = aa;
@@ -225,6 +270,10 @@ public class GraphicsVerification : MonoBehaviour
             Require((bool)UrpAccess.Get(UrpAccess.CameraData(weapon), "dithering") == (aa == 1), "Dithering toggle failed");
         }
         _report.checks.Add("Shared AO, Off/FXAA and dithering apply; Forward+ and native render scale selected");
+    }
+
+    private IEnumerable VerifyQualityLevels()
+    {
         foreach (int level in Enumerable.Range(0, QualitySettings.names.Length))
         {
             GameSettings.QualityLevel = level;
@@ -238,6 +287,10 @@ public class GraphicsVerification : MonoBehaviour
         }
         Require((bool)UrpAccess.Get(UrpAccess.Effect(Resources.Load<ScriptableObject>("Rendering/WorldEffects"), "Bloom"), "active"), "Settings mutated the source profile");
         _report.checks.Add("Quality switching preserves settings; source profile assets remain unchanged");
+    }
+
+    private IEnumerable VerifyExposure(RuntimeGraphics owner, Camera source)
+    {
         GraphicsPreferences.AutoExposure = true;
         if (SystemInfo.supportsAsyncGPUReadback)
         {
@@ -258,6 +311,10 @@ public class GraphicsVerification : MonoBehaviour
             _report.checks.Add("GPU eye adaptation: bright=" + bright + " EV, dark=" + dark + " EV");
             Destroy(_probe); Destroy(_probeMaterial);
         }
+    }
+
+    private IEnumerable VerifyReferenceRendering(RuntimeGraphics owner)
+    {
         GraphicsPreferences.Bloom = GraphicsPreferences.Vignette = GraphicsPreferences.AutoExposure = true;
         GraphicsPreferences.DepthOfField = GraphicsPreferences.MotionBlur = GraphicsPreferences.Tonemapping = GraphicsPreferences.ChromaticAberration = GraphicsPreferences.Dithering = GraphicsPreferences.AmbientOcclusion = false;
         GraphicsPreferences.AntiAliasing = 1;
@@ -265,6 +322,10 @@ public class GraphicsVerification : MonoBehaviour
         yield return null;
         VerifyBloomPixels(owner);
         VerifyPlaceableRendering();
+    }
+
+    private IEnumerable VerifySettingsMenu()
+    {
         var menu = UnityEngine.Object.FindObjectsByType<SettingsMenu>().First();
         PauseGame.menuActive = true;
         MenuCall(menu, "OpenWindow");
@@ -286,7 +347,7 @@ public class GraphicsVerification : MonoBehaviour
             MenuCall(menu, "ApplyDisplay", 640, 360, false);
             yield return new WaitForSecondsRealtime(0.5f);
             MenuCall(menu, "ConfirmDisplay");
-            Require(PlayerPrefs.GetInt("display.width") == 640 && PlayerPrefs.GetInt("display.height") == 360, "Confirmed resolution was not persisted");
+            Require(PlayerPrefs.GetInt(GraphicsPreferenceKeys.DisplayWidth) == 640 && PlayerPrefs.GetInt(GraphicsPreferenceKeys.DisplayHeight) == 360, "Confirmed resolution was not persisted");
             Screen.SetResolution(_width, _height, _mode);
             yield return new WaitForSecondsRealtime(0.5f);
             GraphicsPreferences.ApplySavedDisplay();
@@ -298,11 +359,15 @@ public class GraphicsVerification : MonoBehaviour
         MenuCall(menu, "CloseWindow");
         Require(PauseGame.menuActive, "Closing Settings resumed gameplay");
         _report.checks.Add("Closing Settings leaves pause active");
-        var manager = GameManager.Instance;
-        var oldPhase = manager.CurrentMachState;
-        var oldRoom = manager.CurrentRoom;
-        bool oldEnabled = manager.enabled, oldCounting = ClockManager.canCount;
-        float oldTime = ClockManager.time;
+    }
+
+    private IEnumerable VerifyCandleLighting()
+    {
+        var manager = _game;
+        var oldPhase = manager.Progress;
+        var oldRoom = manager.World.CurrentRoom;
+        bool oldEnabled = manager.enabled, oldCounting = manager.Clock.IsRunning;
+        float oldTime = manager.Clock.Remaining;
         var nightProbe = RenderSettings.ambientProbe;
         float nightIntensity = RenderSettings.ambientIntensity;
         bool nightFog = RenderSettings.fog;
@@ -312,23 +377,20 @@ public class GraphicsVerification : MonoBehaviour
         manager.enabled = false;
         try
         {
-            foreach (var pair in new[] {
-                new[] { GameManager.MatchState.Room1Prepare, GameManager.MatchState.Room1Fight },
-                new[] { GameManager.MatchState.Room2Prepare, GameManager.MatchState.Room2Fight },
-                new[] { GameManager.MatchState.Room3Prepare, GameManager.MatchState.Room3Fight } })
+            for (int stage = 0; stage < manager.StageCount; stage++)
             {
-                manager.CurrentMachState = pair[0];
+                manager.ApplyReplicatedProgress(new Nightmare.Core.Match.MatchProgress(Nightmare.Core.Match.MatchPhase.Prepare, stage));
                 yield return new WaitForSecondsRealtime(0.15f);
                 Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Preparation did not reset candle fog");
-                manager.CurrentMachState = pair[1];
-                manager.StopHordeAttack(); ClockManager.canCount = false;
+                manager.ApplyReplicatedProgress(new Nightmare.Core.Match.MatchProgress(Nightmare.Core.Match.MatchPhase.Defend, stage));
+                manager.Spawner.Stop(); manager.Clock.IsRunning = false;
                 yield return new WaitForSecondsRealtime(0.3f);
                 Require(Mathf.Abs(RenderSettings.ambientIntensity - nightIntensity) < 0.001f && Mathf.Abs(RoomLighting.ExposureOffset) < 0.001f, "Full candles changed night brightness");
                 for (int channel = 0; channel < 3; channel++)
                     for (int coefficient = 0; coefficient < 9; coefficient++)
                         Require(Mathf.Abs(RenderSettings.ambientProbe[channel, coefficient] - nightProbe[channel, coefficient]) < 0.0001f, "Preparation/fight transition amplified the ambient probe");
                 Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Full candles changed the original fog");
-                var area = manager.CurrentRoom.CaptureAreas.Last();
+                var area = manager.World.CurrentRoom.CaptureAreas.Last();
                 float progress = area._progress;
                 using var fogDraws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
                 using var fogTextures = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Render Textures Count");
@@ -345,30 +407,28 @@ public class GraphicsVerification : MonoBehaviour
                         Require(RenderSettings.fogDensity >= nightFogDensity && RenderSettings.fogDensity <= Mathf.Max(nightFogDensity, 0.12f), "Candle fog density outside bounds");
                     }
                     Require(RenderSettings.fog == nightFog && RenderSettings.fogMode == nightFogMode, "Candle effect changed the fog mode or enabled flag");
-                    _report.checks.Add("Candle fog " + manager.CurrentRoom.name + ": draws " + drawsBefore + " -> " + (fogDraws.Valid ? fogDraws.LastValue : -1)
+                    _report.checks.Add("Candle fog " + manager.World.CurrentRoom.name + ": draws " + drawsBefore + " -> " + (fogDraws.Valid ? fogDraws.LastValue : -1)
                         + ", render textures " + texturesBefore + " -> " + (fogTextures.Valid ? fogTextures.LastValue : -1));
                 }
                 finally { area._progress = progress; }
             }
             _report.checks.Add("All three preparation/fight transitions preserve the original night ambient probe and intensity");
-            manager.CurrentMachState = GameManager.MatchState.Win;
+            manager.ApplyReplicatedProgress(new Nightmare.Core.Match.MatchProgress(Nightmare.Core.Match.MatchPhase.Won, manager.StageCount - 1));
             yield return new WaitForSecondsRealtime(0.15f);
             Require(RenderSettings.fogColor == nightFogColor && Mathf.Abs(RenderSettings.fogDensity - nightFogDensity) < 0.0001f, "Victory did not restore original fog");
             _report.checks.Add("Candle fog darkens in all three rooms, stays bounded and restores on preparation/victory without changing fog mode");
         }
         finally
         {
-            manager.CurrentMachState = oldPhase;
-            typeof(GameManager).GetField("_currentRoom", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(manager, oldRoom);
+            manager.ApplyReplicatedProgress(oldPhase);
             manager.enabled = oldEnabled;
-            ClockManager.time = oldTime; ClockManager.canCount = oldCounting;
+            manager.Clock.Remaining = oldTime; manager.Clock.IsRunning = oldCounting;
         }
-        _report.checks.Add("PASS");
     }
 
     void VerifyPlaceableRendering()
     {
-        var placement = GameManager.LocalPlayer.GetComponent<PlacementController>();
+        var placement = _game.Players.LocalPlayer.GetComponent<PlacementController>();
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var models = (List<GameObject>)typeof(PlacementController).GetField("_placeableObjectModels", flags).GetValue(placement);
         var prefabs = (List<GameObject>)typeof(PlacementController).GetField("_placeableObject", flags).GetValue(placement);

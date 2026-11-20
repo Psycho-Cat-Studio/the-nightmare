@@ -1,8 +1,12 @@
-﻿
+
 using UnityEngine;
 
+/// <summary>Stores cell availability and authored identity and presents local placement highlighting.</summary>
 public class GridPoint : MonoBehaviour
 {
+    [SerializeField] private string _stableId;
+    public string Id => string.IsNullOrEmpty(_stableId) ? "legacy:" + gameObject.scene.name + ":" + transform.position.ToString("R") + ":" + tag : _stableId;
+
     [SerializeField] private Sprite _red;
     private Sprite _green;
     [SerializeField] private SpriteRenderer _sprite;
@@ -24,8 +28,8 @@ public class GridPoint : MonoBehaviour
 
     void Start()
     {
-        _red = (Sprite)Resources.Load("red", typeof(Sprite));
-        _green = (Sprite)Resources.Load("green", typeof(Sprite));
+        _red = (Sprite)Resources.Load(IndicatorSprites.Red, typeof(Sprite));
+        _green = (Sprite)Resources.Load(IndicatorSprites.Green, typeof(Sprite));
         changeSprite(_buildable);
         if (_sprite != null)
         {

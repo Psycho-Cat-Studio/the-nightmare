@@ -68,6 +68,10 @@ PrefabInstance:
       propertyPath: _maxHealth
       value: 180
       objectReference: {fileID: 0}
+    - target: {fileID: 3969500987735794099, guid: 9e358129297c07a9fb7fe21d56025ead, type: 3}
+      propertyPath: _definition
+      value: 
+      objectReference: {fileID: 11400000, guid: 79d0b3feddb6daaef854797f86898dde, type: 2}
     - target: {fileID: 6354174881865364598, guid: 9e358129297c07a9fb7fe21d56025ead, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 

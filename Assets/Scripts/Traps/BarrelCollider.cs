@@ -1,5 +1,6 @@
 using UnityEngine;
 
+/// <summary>Forwards active server explosion-trigger contacts to shared blast-damage rules.</summary>
 public class BarrelCollider : MonoBehaviour
 {
     public bool server = false;

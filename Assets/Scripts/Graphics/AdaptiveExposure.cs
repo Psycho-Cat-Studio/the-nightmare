@@ -4,8 +4,12 @@ using UnityEngine.Rendering;
 
 // PPSv1-like eye adaptation. Meter an unprocessed, world-only camera twice a second; no HUD/weapon
 // pixels or feedback from the current exposure enter the luminance measurement. Readback is async.
-public class AdaptiveExposure : MonoBehaviour
+/// <summary>Meters world-camera luminance with GPU readback and smoothly adapts the cloned exposure override.</summary>
+public class AdaptiveExposure : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     Camera _meter;
     RenderTexture _target;
     bool _pending;
@@ -19,7 +23,7 @@ public class AdaptiveExposure : MonoBehaviour
         {
             yield return wait;
             if (!GraphicsPreferences.AutoExposure || !SystemInfo.supportsAsyncGPUReadback || _pending) continue;
-            var local = GameManager.LocalPlayer;
+            var local = _game?.Players.LocalPlayer;
             if (local == null) continue;
             var source = local.GetComponent<PlayerSetup>().ActionCamera;
             if (source == null || !source.isActiveAndEnabled) continue;

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Threading;
 using UnityEngine;
 
+/// <summary>Initializes invariant culture for legacy numeric identifiers and consistent game formatting.</summary>
 public static class GameBootstrap
 {
     // Capture areas and building points are identified by strings built from float positions

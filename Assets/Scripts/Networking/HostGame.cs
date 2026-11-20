@@ -1,6 +1,7 @@
-﻿using TMPro;
+using TMPro;
 using UnityEngine;
 
+/// <summary>Connects the host-room UI to the currently composed session service.</summary>
 public class HostGame : MonoBehaviour
 {
     [SerializeField] private GameObject _panel;
@@ -11,20 +12,15 @@ public class HostGame : MonoBehaviour
         _roomName = name;
     }
 
-    // Kept for the existing (hidden) password field binding; direct connections have no password.
-    public void SetPassword(string password)
-    {
-    }
-
     public void CreateRoom()
     {
-        CustomNetworkManager manager = CustomNetworkManager.Instance;
-        if (manager == null || manager.isNetworkActive) return;
+        var manager = SessionServices.Current;
+        if (manager == null || manager.IsNetworkActive) return;
 
-        string roomName = string.IsNullOrEmpty(_roomName) ? CustomNetworkManager.DEFAULT_ROOM_NAME : _roomName;
+        string roomName = string.IsNullOrEmpty(_roomName) ? Nightmare.Core.Ports.SessionDefaults.RoomName : _roomName;
         _panel.SetActive(true);
         _panel.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = "Creating room " + roomName + "...";
-        if (!manager.Host(roomName, CustomNetworkManager.DEFAULT_PORT))
+        if (!manager.Host(roomName, Nightmare.Core.Ports.SessionDefaults.Port))
             _panel.SetActive(false);
     }
 }

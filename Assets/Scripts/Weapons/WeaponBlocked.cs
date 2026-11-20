@@ -1,5 +1,6 @@
-﻿using UnityEngine;
+using UnityEngine;
 
+/// <summary>Tracks overlapping obstructions and suppresses local weapon control while the gun is blocked.</summary>
 public class WeaponBlocked : MonoBehaviour
 {
     private bool _isBlocked = false;
@@ -17,7 +18,6 @@ public class WeaponBlocked : MonoBehaviour
                     _shoot.enabled = false;
                 }
                 _gun.transform.localRotation = Quaternion.Euler(-75f, 0f, 0f);
-                //_gun.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, _initPosZ + 0.4f);
             }
             else
             {
@@ -28,23 +28,19 @@ public class WeaponBlocked : MonoBehaviour
                     _shoot.enabled = true;
                 }
                 _gun.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                //_gun.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, _initPosZ);
             }
         }
     }
     [SerializeField] private GameObject _cross;
     [SerializeField] private PlayerManager _player;
     private Transform _gun;
-    private float _initPosZ; 
     private PlayerShoot _shoot;
     // Number of blocking colliders currently overlapping; leaving one of several used to unblock.
     private int _overlaps;
-     
 
     private void Start()
     {
 
-        _initPosZ = transform.localPosition.z;
         _player = transform.GetComponentInParent<PlayerManager>();
         _gun = transform.GetChild(0);
         if (_player.isLocalPlayer)
@@ -56,9 +52,9 @@ public class WeaponBlocked : MonoBehaviour
 
     private static bool Blocks(Collider other)
     {
-        return !other.CompareTag("Floor") && !other.CompareTag("Enemy") &&
-               !other.CompareTag("EnemyHead") && !other.CompareTag("EnemyLegs") &&
-               !other.CompareTag("EnemyBody");
+        return !other.CompareTag(GameTags.Floor) && !other.CompareTag(GameTags.Enemy) &&
+               !other.CompareTag(GameTags.EnemyHead) && !other.CompareTag(GameTags.EnemyLegs) &&
+               !other.CompareTag(GameTags.EnemyBody);
     }
 
     private void OnTriggerEnter(Collider other)

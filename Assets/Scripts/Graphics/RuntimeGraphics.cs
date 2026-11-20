@@ -6,8 +6,12 @@ using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 // Owns runtime copies; opening settings never edits the project's render-pipeline/profile assets.
-public class RuntimeGraphics : MonoBehaviour
+/// <summary>Owns cloned render pipelines and Volume profiles and applies local preferences to player cameras.</summary>
+public class RuntimeGraphics : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     public static RuntimeGraphics Instance { get; private set; }
     public ScriptableObject WorldProfile { get; private set; }
     public float Exposure { get; set; } = 1f;
@@ -128,7 +132,7 @@ public class RuntimeGraphics : MonoBehaviour
     }
     void ConfigureCameras()
     {
-        var player = GameManager.LocalPlayer;
+        var player = _game?.Players.LocalPlayer;
         var setup = player == null ? null : player.GetComponent<PlayerSetup>();
         Camera action = setup == null ? null : setup.ActionCamera;
         Camera weapon = action == null ? null : UrpCameraStack.WeaponCamera(action);
@@ -138,11 +142,11 @@ public class RuntimeGraphics : MonoBehaviour
             if (camera.name == "Exposure Meter") continue;
             var data = UrpAccess.CameraData(camera);
             bool gameplay = player != null && camera.transform.IsChildOf(player.transform)
-                && camera.targetTexture == null && camera.cullingMask != (1 << LayerMask.NameToLayer("UI"));
+                && camera.targetTexture == null && camera.cullingMask != (1 << LayerMask.NameToLayer(GameLayers.UI));
             bool overlay = string.Equals(UrpAccess.Get(data, "renderType").ToString(), "Overlay");
             // A single shared pass on the last 3D camera. Canvas UI is composed afterwards.
             bool post = gameplay && (camera == weapon || !overlay && (weapon == null || !weapon.isActiveAndEnabled));
-            UrpAccess.Set(data, "volumeLayerMask", (LayerMask)(gameplay ? 1 << LayerMask.NameToLayer("PostFX World") : 0));
+            UrpAccess.Set(data, "volumeLayerMask", (LayerMask)(gameplay ? 1 << LayerMask.NameToLayer(GameLayers.PostFxWorld) : 0));
             UrpAccess.Set(data, "renderPostProcessing", post);
             // URP initializes AA/dithering for the whole stack from its Base camera, even when
             // post-processing itself runs only on the last Overlay. Keep both camera roles aligned.

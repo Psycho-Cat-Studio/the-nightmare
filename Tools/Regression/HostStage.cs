@@ -1,0 +1,13 @@
+using UnityEngine;using UnityEditor;using UnityEngine.AI;using Mirror;using System.IO;using System.Linq;
+var game=CustomNetworkManager.Instance.Game;
+string dir=__RUN_DIR__;
+await Wait.Until(()=>game.Players.Players.Count==2);
+game.ServerRegisterReady(game.Players.LocalPlayer.name);
+await Wait.Until(()=>game.Phase==Nightmare.Core.Match.MatchPhase.Prepare);
+game.Clock.IsRunning=false;
+var host=game.Players.LocalPlayer;host.GetComponent<Rigidbody>().isKinematic=true;host.GetComponent<Rigidbody>().position=new Vector3(-40,20,-40);host.transform.position=new Vector3(-40,20,-40);
+NavMeshHit h;NavMesh.SamplePosition(game.World.CurrentRoom.CaptureAreas[0].transform.position+Vector3.right*2.8f,out h,5,-1);
+var enemy=Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Enemies/GhostOrange.prefab"),h.position,Quaternion.identity);NetworkServer.Spawn(enemy);await Task.Delay(150);var brain=enemy.GetComponent<EnemyControllerServer>();brain.CurrentState=EnemyControllerServer.EnemyState.Blocked;brain.Agent.isStopped=true;
+var cell=game.World.CurrentRoom.GridPoints.Where(p=>p.Buildable).OrderBy(p=>(p.transform.position-h.position).sqrMagnitude).First();
+File.WriteAllText(Path.Combine(dir,"enemy.txt"),enemy.name);File.WriteAllText(Path.Combine(dir,"cell.txt"),cell.Id);File.WriteAllText(Path.Combine(dir,"cell-position.json"),JsonUtility.ToJson(cell.transform.position));
+return new{ready=true,enemy=enemy.name,cell=cell.Id};
