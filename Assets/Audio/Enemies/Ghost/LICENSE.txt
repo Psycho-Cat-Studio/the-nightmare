@@ -1,0 +1,11 @@
+Ghost vocal feedback
+
+Source: Ghost Monster Voice Moaning & Growling by qubodup
+https://opengameart.org/content/ghost-monster-voice-moaning-growling
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Derived from separate excerpts of qubodup-GhostMoan01..05.wav: rate variation,
+180–6500 Hz filtering, quiet 43 ms spectral echo, fades and normalization.
+Mono PCM, 22050 Hz. The derived recordings are also dedicated under CC0 1.0.
+See docs/GHOST-AND-COMBAT-POLISH.md for excerpt mapping.

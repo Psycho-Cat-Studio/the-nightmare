@@ -1,48 +1,27 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-public class ClockManager : MonoBehaviour
+/// <summary>Formats the session clock. Rendering or recreating the HUD cannot reset match time.</summary>
+public class ClockManager : MonoBehaviour, IMatchParticipant
 {
-    public static bool canCount;
-    public static float time;
-    private TextMeshProUGUI _minutesTM;
-    private TextMeshProUGUI _secondsTM;
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
 
-    private int _minutes;
-    private int _seconds;
-    private String _zero = "";
-    
+    [SerializeField] private TextMeshProUGUI _minutesTM;
+    [SerializeField] private TextMeshProUGUI _secondsTM;
+
     void Start()
     {
-        _minutesTM = transform.GetChild(0).GetChild(0).GetComponent<TextMeshProUGUI>();
-        _secondsTM = transform.GetChild(0).GetChild(2).GetComponent<TextMeshProUGUI>();
-        canCount = false;
-        time = 0f;
+        // Compatibility with experimental scenes; shipped scenes have explicit bindings.
+        if (_minutesTM == null) _minutesTM = transform.GetChild(0).GetChild(0).GetComponent<TextMeshProUGUI>();
+        if (_secondsTM == null) _secondsTM = transform.GetChild(0).GetChild(2).GetComponent<TextMeshProUGUI>();
     }
-    
+
     void Update()
     {
-        _zero = "";
-        _minutes = (int) time / 60;
-        _seconds = (int) time % 60;
-        
-
-        if (_minutes < 10)
-            _zero = "0";
-        _minutesTM.text = _zero + _minutes;
-        _zero = "";
-
-        if (_seconds < 10)
-            _zero = "0";
-        _secondsTM.text = _zero + _seconds;
-        
-        
-        if (canCount)
-        {
-            time -= Time.deltaTime;
-        }
+        if (_game == null) return;
+        int totalSeconds = (int)_game.Clock.Remaining;
+        _minutesTM.text = (totalSeconds / 60).ToString("D2");
+        _secondsTM.text = (totalSeconds % 60).ToString("D2");
     }
 }

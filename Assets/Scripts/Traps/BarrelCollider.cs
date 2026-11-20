@@ -1,11 +1,12 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Forwards active server explosion-trigger contacts to shared blast-damage rules.</summary>
 public class BarrelCollider : MonoBehaviour
 {
     public bool server = false;
     private float _damage;
+    private readonly ExplosionDamage _explosion = new ExplosionDamage();
+
     void Start()
     {
         _damage = transform.GetComponentInParent<Barrel>().damage;
@@ -13,21 +14,6 @@ public class BarrelCollider : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (server)
-        {
-            Debug.Log("Is server");
-            if (other.CompareTag("EnemyLegs") || other.CompareTag("EnemyHead") || other.CompareTag("EnemyBody"))
-            {
-                other.GetComponentInParent<EnemyControllerServer>().CmdTakeDamage(_damage);
-            }
-            else if (other.CompareTag("Player"))
-            {
-                other.GetComponentInParent<PlayerManager>().RpcTakeDamage(45f);
-            }
-            else if (other.CompareTag("Barrel"))
-            {
-                other.GetComponent<Barrel>().Explode();
-            }
-        }
+        if (server) _explosion.Apply(other, _damage);
     }
 }

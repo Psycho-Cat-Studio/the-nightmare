@@ -1,15 +1,17 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 
-public class Arrow : MonoBehaviour
+/// <summary>Points the local preparation indicator toward the current equipment chest.</summary>
+public class Arrow : MonoBehaviour, IMatchParticipant
 {
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     private bool isSet = false;
     private GameObject target;
     void Update()
     {
-        if (isSet)
+        if (isSet && target != null)
         {
             Vector3 targetPosition = target.transform.position;
             targetPosition.y = transform.position.y;
@@ -19,7 +21,7 @@ public class Arrow : MonoBehaviour
 
     public void setTarget()
     {
-        target = GameManager.Instance.currentChest;
+        target = _game.World.CurrentChest;
         isSet = true;
     }
 }

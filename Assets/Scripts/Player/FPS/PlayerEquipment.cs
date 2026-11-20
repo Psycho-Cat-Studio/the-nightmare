@@ -1,10 +1,19 @@
-﻿using System;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Networking;
-using UnityEngine.UI;
 
-public class PlayerEquipment : NetworkBehaviour {
+/// <summary>Owns local pickup interactions and the two-slot loadout, plus presentation of replicated remote weapons.</summary>
+public class PlayerEquipment : MonoBehaviour, IPlayerLoadout, IMatchParticipant
+{
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
+    public GameObject ActiveWeapon => getActiveWeapon() != null ? getActiveWeapon().gameObject : null;
+    public bool IsSwitchingWeapon => _shoot != null && _shoot.IsSwitchingWeapon;
+    private IEquipmentRequests _requests;
+    private PlayerAuthority _authority;
+    public bool isLocalPlayer => _authority != null && _authority.IsLocalPlayer;
+    public void InitializeEquipment(IEquipmentRequests requests) { _requests = requests; }
+    void Awake() { _authority = GetComponent<PlayerAuthority>(); _rig = GetComponent<PlayerRigBindings>(); }
     public AudioSource WeaponSound { get; set; }
     public Weapon Weapon1 { get; set; }
     public Weapon Weapon2 { get; set; }
@@ -13,20 +22,22 @@ public class PlayerEquipment : NetworkBehaviour {
     private TextMeshProUGUI pickUp;
     private PlayerShoot _shoot;
     private PlacementController _controller;
-    private ChestAlwaysFull _chest;
+    [SerializeField, Min(0f)] private float _interactionDistance = 0.75f;
+    private PlayerRigBindings _rig;
+    private const float ImpactLifetimeSeconds = 2f;
     private AudioSource _source;
     [SerializeField] private AudioClip _pick;
     [SerializeField] private AudioClip _pickRifle;
 
     private void Start() {
         if (isLocalPlayer) {
-            pickUp = GameObject.Find("PlayerUI").transform.GetChild(2).GetComponent<TextMeshProUGUI>();
+            pickUp = _game.SceneBindings.Interaction;
         }
         else {
-            transform.GetChild(3).gameObject.SetActive(false);//turn off camera
-            transform.GetChild(1).GetChild(2).gameObject.SetActive(false);//turn off arrow
+            _rig.BuildingRoot.SetActive(false);//turn off camera
+            if (_rig.RemoteArrow != null) _rig.RemoteArrow.SetActive(false);//turn off arrow
         }
-        
+
         _shoot = GetComponent<PlayerShoot>();
         _controller = GetComponent<PlacementController>();
         Weapon2 = null;
@@ -40,225 +51,184 @@ public class PlayerEquipment : NetworkBehaviour {
         return Weapon2;
     }
 
-    private void Update() {
-        RaycastHit weaponFinder;
-        if (Physics.Raycast(_cam.transform.position, _cam.transform.forward, out weaponFinder, 0.75f,
-            _mask)) {
-            if (weaponFinder.collider.CompareTag("removableChairs")) {
-                if (isLocalPlayer) {
-                    pickUp.enabled = true;
-                    pickUp.text = "Press E to Remove Chairs";
-                }
-
-                if (Input.GetKeyDown(KeyCode.E)) {
-                    Destroy(weaponFinder.collider.gameObject);
-                }
-            }
-            else if (weaponFinder.collider.CompareTag("Weapon")) {
-                if (isLocalPlayer){
-                    pickUp.enabled = true;
-                    pickUp.text = "Press E to pick up Rifle";
-                }
-                if (Input.GetKeyDown(KeyCode.E)) {
-                    if (isLocalPlayer) {
-                        _source.clip = _pickRifle;
-                        _source.PlayOneShot(_source.clip);
-                        if (_cam.transform.GetChild(0).transform.childCount <= 1) {
-                            GameObject weaponObject = Instantiate(GameManager.Instance.Weapons[1],
-                                _cam.transform.GetChild(0).transform);
-                            Weapon2 = weaponObject.GetComponent<Weapon>();
-                            Weapon1.transform.localPosition = new Vector3(0.02f, 0.03f, -0.22f);
-                            Weapon1.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
-                            Weapon1.gameObject.SetActive(false);
-//                            CmdChangeWeapon(1);
-                        }
-                        else {
-                            Weapon2.CurrentAmmo = Weapon2.MaxAmmo + (Weapon2.MaxMagAmmo - Weapon2.CurrentMagAmmo);
-//                        Weapon2.CurrentMagAmmo = Weapon2.MaxMagAmmo;
-                        }
-                    }
-                    else {
-//                        Transform rightHand = transform.GetChild(0).GetChild(0).GetChild(2).GetChild(2)
-//                            .GetChild(0).GetChild(0).GetChild(2).GetChild(0).GetChild(0).GetChild(0).transform;
-//
-//                        GameObject weaponObject = null;
-//                        if (rightHand.childCount == 6) {
-//                            weaponObject = Instantiate(GameManager.Instance.Weapons[1], rightHand);
-//                            
-//                            PlayerShoot shoot = GetComponent<PlayerShoot>();
-//                            shoot.source = GetComponent<AudioSource>();
-//                            PlayerEquipment _equipment = GetComponent<PlayerEquipment>();
-//                            _equipment.Weapon2 = weaponObject.GetComponent<Weapon>();
-//                            _equipment.WeaponSound = weaponObject.GetComponent<AudioSource>();
-//                            _equipment.Weapon2.GetComponent<Animator>().enabled = false;
-//                            shoot.Equipment = _equipment;
-//                        }
-//                        else {
-//                            weaponObject = transform.GetComponent<PlayerEquipment>().Weapon2.gameObject;
-////                            weaponObject.GetComponent<Weapon>().resetAmmo();
-//                            
-//                            weaponObject.GetComponent<Weapon>().CurrentAmmo = weaponObject.GetComponent<Weapon>().MaxAmmo + (weaponObject.GetComponent<Weapon>().MaxMagAmmo - weaponObject.GetComponent<Weapon>().CurrentMagAmmo);
-//                        }
-                    }
-                }
-            }
-            else if (weaponFinder.collider.CompareTag("reviving")) {
-                if (isLocalPlayer){
-                    pickUp.enabled = true;
-                    pickUp.text = "Press E to revive";
-                }
-                if (Input.GetKeyDown(KeyCode.E)) {
-                    CmdCallRevive(weaponFinder.collider.GetComponentInParent<PlayerManager>().transform.name);
-                }
-            }
-            else if (weaponFinder.collider.CompareTag("Chest")) {
-                _chest = weaponFinder.collider.GetComponentInParent<ChestAlwaysFull>();
-                    if (_chest.active && !_chest.alreadyPicked) {
-                        if (isLocalPlayer){
-                            pickUp.enabled = true;
-                            pickUp.text = "Press E to pick up collectibles";
-                        }
-                        if (Input.GetKeyDown(KeyCode.E))
-                        {
-                            _source.clip = _pick;
-                            _source.PlayOneShot(_source.clip);
-                            _shoot._grenades += _chest.grenades;
-                        if (_controller.placeableCount[0] + _chest.snares >= _controller.maxPlaceable[0])
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(0);
-                            _controller.placeableCount[0] = _controller.maxPlaceable[0];
-                           
-                        }
-                        else
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(0);
-                            _controller.placeableCount[0] += _chest.snares;
-                        }
-
-                        if (_controller.placeableCount[1] + _chest.teddyBears >= _controller.maxPlaceable[1])
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(1);
-                            _controller.placeableCount[1] = _controller.maxPlaceable[1];
-                        }
-                        else
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(1);
-                            _controller.placeableCount[1] += _chest.teddyBears;
-                        }
-
-                        if (_controller.placeableCount[2] + _chest.barrels >= _controller.maxPlaceable[2])
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(2);
-                            _controller.placeableCount[2] = _controller.maxPlaceable[2];
-                        }
-                        else
-                        {
-                            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && _chest.grenades == 0) _controller.InstantietePlaceable(2);
-                            _controller.placeableCount[2] += _chest.barrels;
-                        }
-                        _chest.alreadyPicked = true;
-                        }
-                    }
-                    else {
-                        if (isLocalPlayer)
-                            pickUp.enabled = false;
-                    }
-            }
-            else {
-                if (isLocalPlayer)
-                    pickUp.enabled = false;
-            }
-        }
-        else {
-            if (isLocalPlayer)
-                pickUp.enabled = false;
-        }
-    }
-
-    [Command]
-    private void CmdCallRevive(string name)
+    private void Update()
     {
-        RpcCallRevive(name);
+        if (!isLocalPlayer || SettingsMenu.IsOpen) return;
+        if (Physics.Raycast(_cam.transform.position, _cam.transform.forward, out var hit, _interactionDistance, _mask))
+            HandleInteraction(hit.collider);
+        else pickUp.enabled = false;
     }
 
-    [ClientRpc]
-    private void RpcCallRevive(string name)
+    private void HandleInteraction(Collider target)
     {
-        GameManager.Players[name].Revive();
+        if (target.CompareTag(GameTags.RemovableChairs))
+        {
+            ShowPrompt("Press E to Remove Chairs");
+            if (Input.GetKeyDown(KeyCode.E)) _requests.RemoveChairs(target.transform.position);
+        }
+        else if (target.CompareTag(GameTags.Weapon)) HandleWeaponPickup(target);
+        else if (target.CompareTag(GameTags.Reviving))
+        {
+            ShowPrompt("Press E to revive");
+            if (Input.GetKeyDown(KeyCode.E)) _requests.Revive(target.GetComponentInParent<PlayerManager>().transform.name);
+        }
+        else if (target.CompareTag(GameTags.Chest)) HandleChestPickup(target);
+        else pickUp.enabled = false;
     }
-    
+
+    private void ShowPrompt(string message)
+    {
+        pickUp.enabled = true;
+        pickUp.text = message;
+    }
+
+    private void HandleWeaponPickup(Collider target)
+    {
+        var spawn = target.GetComponentInParent<GunSpawnPoint>();
+        int index = spawn != null ? spawn.WeaponId : 1;
+        var prefabs = _game.Weapons;
+        if (index < 0 || index >= prefabs.Length) return;
+        var weapon = prefabs[index].GetComponent<Weapon>();
+        string displayName = weapon.Definition != null ? weapon.Definition.DisplayName : weapon.Name;
+        ShowPrompt("Press E to pick up " + displayName);
+        if (Input.GetKeyDown(KeyCode.E)) TryCollectWeapon(index);
+    }
+
+    private void HandleChestPickup(Collider target)
+    {
+        var chest = target.GetComponentInParent<ChestAlwaysFull>();
+        pickUp.enabled = chest.active && !chest.alreadyPicked;
+        if (!pickUp.enabled) return;
+        pickUp.text = "Press E to pick up collectibles";
+        if (Input.GetKeyDown(KeyCode.E)) CollectChest(chest);
+    }
+
+    /// <summary>Applies authored local chest grants with placeable capacity limits and a same-frame duplicate guard.</summary>
+    /// <remarks>Chests intentionally become collectible again on subsequent updates.</remarks>
+    public void CollectChest(ChestAlwaysFull chest)
+    {
+        if (!isLocalPlayer || chest == null || !chest.active || chest.alreadyPicked) return;
+        _source.PlayOneShot(_pick);
+        _shoot._grenades += chest.grenades;
+        var catalog = _game.Content;
+        foreach (var grant in chest.GetPlaceableGrants(catalog))
+        {
+            int index = System.Array.IndexOf(catalog.Placeables, grant.Item);
+            if (index < 0 || index >= _controller.placeableCount.Length) continue;
+            if (_controller.hasNoPlaceable() && _shoot.IsBuildingOnFly && chest.grenades == 0)
+                _controller.InstantietePlaceable(index);
+            _controller.placeableCount[index] = Mathf.Min(
+                _controller.maxPlaceable[index], _controller.placeableCount[index] + grant.Amount);
+        }
+        chest.alreadyPicked = true;
+    }
+
+    /// <summary>Collects a catalog weapon into the two-slot loadout, or refills the same weapon while preserving loaded rounds.</summary>
+    /// <returns>Whether local ownership and current weapon-operation state permitted collection.</returns>
+    public bool TryCollectWeapon(int index)
+    {
+        var prefabs = _game.Weapons;
+        var active = getActiveWeapon();
+        if (!isLocalPlayer || active == null || active.State != Weapon.WeaponState.idle
+            || _shoot.IsSwitchingWeapon || index < 0 || index >= prefabs.Length) return false;
+        _source.PlayOneShot(_pickRifle);
+        var existing = FindCarriedWeapon(index);
+        if (existing != null)
+        {
+            existing.CurrentAmmo = existing.MaxAmmo;
+            return true;
+        }
+        if (Weapon2 != null) Destroy(Weapon2.gameObject);
+        var instance = Instantiate(prefabs[index], _rig.WeaponHolder);
+        Weapon2 = instance.GetComponent<Weapon>();
+        Weapon1.transform.localPosition = Weapon1.Definition != null ? Weapon1.Definition.FirstPersonPosition : new Vector3(.02f, .03f, -.22f);
+        Weapon1.transform.localRotation = Quaternion.identity;
+        Weapon1.gameObject.SetActive(false);
+        CmdSetActiveWeapon(index);
+        return true;
+    }
+
+    private Weapon FindCarriedWeapon(int id)
+    {
+        if (Weapon1.Id == id) return Weapon1;
+        if (Weapon2 != null && Weapon2.Id == id) return Weapon2;
+        return null;
+    }
+
     public void PlayerShooting() {
         getActiveWeapon().Flash.Play();
         GameObject smokeEffect =
             Instantiate(getActiveWeapon().Smoke, getActiveWeapon().transform.GetChild(0).position,
                 Quaternion.Euler(-90, 0, 0));
-        Destroy(smokeEffect, 2f);
+        Destroy(smokeEffect, ImpactLifetimeSeconds);
     }
 
+    // Which weapon a player holds is shown to everybody else. Before, remote players always held the
+    // pistol model (the old RpcChangeWeapon was commented out because it indexed hand children that
+    // did not exist yet), so muzzle flashes and smoke also came from the wrong gun.
+    public void CmdSetActiveWeapon(int weaponId) { _requests.SetActiveWeapon(weaponId); }
 
-    [Command]
-    public void CmdChangeWeapon(int weaponId) {
-        RpcChangeWeapon(weaponId);
-    }
+    public void ShowRemoteWeapon(int weaponId) {
+        if (isLocalPlayer || Weapon1 == null) return;
 
-    [ClientRpc]
-    void RpcChangeWeapon(int weaponId) {
-        if (!isLocalPlayer) {
-            Transform rightHand = transform.GetChild(0).GetChild(0).GetChild(2).GetChild(2)
-                .GetChild(0).GetChild(0).GetChild(2).GetChild(0).GetChild(0).GetChild(0).transform;
-            if (weaponId == 1) {
-                rightHand.GetChild(5).gameObject.SetActive(false);
-                rightHand.GetChild(6).gameObject.SetActive(true);
-            } else {
-                rightHand.GetChild(5).gameObject.SetActive(true);
-                rightHand.GetChild(6).gameObject.SetActive(false);
-            }
-
-            GameObject weaponObject =
-                Instantiate(GameManager.Instance.Weapons[weaponId],
-                    rightHand); //_cam.transform.GetChild(0).transform);//tutaj
-            if (weaponObject.GetComponent<Weapon>().Name.Equals("Rifle")) {
-                weaponObject.transform.localPosition = new Vector3(-0.061f, -0.442f, 0.308f);
-                weaponObject.transform.localRotation = Quaternion.Euler(-106.591f, 62.645f, 25.95499f);
-            }
-            else {
-                weaponObject.transform.localPosition = new Vector3(-0.115f, -0.407f, 0.333f);
-                weaponObject.transform.localRotation = Quaternion.Euler(-101.359f, 19.54199f, 79.521f);
-            }
-
-            Weapon2 = weaponObject.GetComponent<Weapon>();
-            WeaponSound = weaponObject.GetComponent<AudioSource>();
-            Weapon2.State = Weapon.WeaponState.idle;
-            Weapon2.CurrentMagAmmo = Weapon1.MaxMagAmmo;
-            Weapon2.CurrentAmmo = Weapon1.MaxAmmo;
-            weaponObject.GetComponent<Animator>().enabled = false;
-            GameManager.SetLayerRecursively(weaponObject, "LocalPlayer");
+        if (weaponId == Weapon1.Id) {
+            Weapon1.gameObject.SetActive(true);
+            if (Weapon2 != null) Weapon2.gameObject.SetActive(false);
+            return;
         }
+
+        if (Weapon2 == null || Weapon2.Id != weaponId) {
+            if (Weapon2 != null) Destroy(Weapon2.gameObject);
+            Weapon2 = CreateRemoteWeapon(_game.Weapons[weaponId]);
+        }
+        Weapon2.gameObject.SetActive(true);
+        Weapon1.gameObject.SetActive(false);
     }
 
-    [ClientRpc]
-    public void RpcPlayerShooting() {
+    // Third-person weapon held by another player's model; used for its visuals and muzzle effects only.
+    /// <summary>Creates presentation-only equipment at the authored model hand, using the weapon definition pose.</summary>
+    public Weapon CreateRemoteWeapon(GameObject weaponPrefab) {
+        GameObject weaponObject = Instantiate(weaponPrefab, _rig.RemoteWeaponHand);
+        MatchBindings.BindHierarchy(weaponObject, _game);
+        Weapon weapon = weaponObject.GetComponent<Weapon>();
+        if (weapon.Definition != null)
+        {
+            weaponObject.transform.localPosition = weapon.Definition.RemotePosition;
+            weaponObject.transform.localRotation = Quaternion.Euler(weapon.Definition.RemoteEuler);
+        }
+        else if (weapon.Name.Equals("Rifle")) {
+            weaponObject.transform.localPosition = new Vector3(-0.061f, -0.442f, 0.308f);
+            weaponObject.transform.localRotation = Quaternion.Euler(-106.591f, 62.645f, 25.95499f);
+        }
+        else {
+            weaponObject.transform.localPosition = new Vector3(-0.115f, -0.407f, 0.333f);
+            weaponObject.transform.localRotation = Quaternion.Euler(-101.359f, 19.54199f, 79.521f);
+        }
+        weaponObject.GetComponent<Animator>().enabled = false;
+        TransformLayers.SetRecursively(weaponObject, GameLayers.LocalPlayer);
+        return weapon;
+    }
+
+    public void PlayRemoteShot() {
         if (!isLocalPlayer) {
             _shoot.playSootSound();
             getActiveWeapon().Flash.Play();
             GameObject smokeEffect = Instantiate(getActiveWeapon().Smoke,
                 getActiveWeapon().transform.GetChild(0).position,
                 Quaternion.Euler(-90, 0, 0));
-            Destroy(smokeEffect, 2f);
+            Destroy(smokeEffect, ImpactLifetimeSeconds);
         }
     }
 
     public void DoHitEffect(Vector3 hitPoint, Vector3 normal) {
         GameObject hitEffect = Instantiate(getActiveWeapon().HitEffect, hitPoint, Quaternion.LookRotation(normal));
-        Destroy(hitEffect, 2f);
+        Destroy(hitEffect, ImpactLifetimeSeconds);
     }
 
-
-    [ClientRpc]
-    public void RpcDoHitEffect(Vector3 hitPoint, Vector3 normal) {
+    public void PlayRemoteImpact(Vector3 hitPoint, Vector3 normal) {
         if (!isLocalPlayer) {
             GameObject hitEffect = Instantiate(getActiveWeapon().HitEffect, hitPoint, Quaternion.LookRotation(normal));
-            Destroy(hitEffect, 2f);
+            Destroy(hitEffect, ImpactLifetimeSeconds);
         }
     }
 }

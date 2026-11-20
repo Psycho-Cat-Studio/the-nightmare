@@ -1,0 +1,27 @@
+Skeleton wraith feedback mixes
+
+Source recording: Horror scream1 — Vinrax
+https://opengameart.org/content/horror-scream1
+Recording: https://opengameart.org/sites/default/files/scream_horror1.mp3
+License: Creative Commons Zero 1.0 (CC0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+SkeletonHurt01..03 are derived from this recording:
+separate crops, pitch/rate variation, high/low-pass filtering, a short baked
+spectral echo, fades and peak normalization. Mono PCM, 22050 Hz.
+The derived mixes are also dedicated to the public domain under CC0 1.0.
+No film recordings are used. The earlier ghost-moan/bone mixes were replaced.
+See docs/ENEMY-FEEDBACK.md for segment mapping and playback settings.
+
+Attack source recording: Ghostmonster sounds — iletzy
+https://opengameart.org/content/ghostmonster-sounds
+Recording: https://opengameart.org/sites/default/files/Ghostmonster%20sounds.mp3
+License: CC0 1.0 (same dedication as above).
+SkeletonAttack01..03 use separate low growl/breath excerpts, down-pitched
+(rate 0.74–0.88), filtered 100–4800 Hz, with a short baked 29 ms echo and fades.
+These replace the higher scream-derived attack clips; pain clips are unchanged.
+
+SkeletonDeath01..03 also derive from Vinrax's CC0 Horror scream1 recording:
+short excerpts, rate changes, 160–6500 Hz filtering, onset/release fades and
+level normalization. Final lengths: 0.70/0.80/0.85 seconds. CC0 1.0.
+See docs/COMBAT-FOLLOWUP.md for source start times and playback settings.

@@ -1,0 +1,63 @@
+name: Gameplay regression
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Assets/Scripts/**'
+      - 'Assets/Tests/**'
+      - 'Assets/Configuration/**'
+      - 'Assets/Prefabs/**'
+      - 'Assets/Scenes/**'
+      - 'Packages/**'
+      - 'ProjectSettings/**'
+      - '.github/workflows/regression-tests.yml'
+
+# Shares the existing build license; simultaneous activations terminate each other's Editor.
+concurrency:
+  group: unity-build
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+      - uses: actions/checkout@v4
+      - name: Check boundaries and saved scene identities
+        run: |
+          python3 Tools/check_module_boundaries.py
+          python3 Tools/assign_scene_ids.py --check
+      - name: Run Unity EditMode and PlayMode tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          testMode: all
+          customParameters: -testFilter Nightmare.Tests
+          coverageEnabled: false
+          githubToken: ''
+          artifactsPath: artifacts/regression
+      - name: Upload results and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-regression
+          path: artifacts/regression
+          if-no-files-found: warn

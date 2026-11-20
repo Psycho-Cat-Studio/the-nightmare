@@ -1,28 +1,15 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>Forwards eligible player detection to the owning enemy simulation.</summary>
 public class EnemyPlayerDetector : MonoBehaviour
 {
-
-    private EnemyControllerServer _enemyControllerServer;
-    // Start is called before the first frame update
-    void Start()
+    private IEnemyPerception _receiver;
+    void Awake() { _receiver = GetComponentInParent<IEnemyPerception>(); }
+    void Start() { if (_receiver == null || !_receiver.IsAuthority) enabled = false; }
+    void OnTriggerEnter(Collider other)
     {
-        if (GetComponentInParent<EnemyControllerServer>().enabled)
-        {
-            _enemyControllerServer = GetComponentInParent<EnemyControllerServer>();
-        }
-        else enabled = false;
+        if (!enabled || _receiver == null || !_receiver.CanDetectPlayer || !other.CompareTag(GameTags.Player)) return;
+        var player = other.GetComponentInParent<IPlayerHitTarget>();
+        if (player != null && !player.IsDead) _receiver.DetectPlayer(player.Root);
     }
-
-    private void OnTriggerEnter(Collider other)
-    {
-        if (enabled && !_enemyControllerServer.IsTriggerLocked && other.CompareTag("Player"))
-        {
-            _enemyControllerServer.PlayerDetected(other.GetComponentInParent<PlayerManager>().transform);
-        }
-    }
-
-
 }

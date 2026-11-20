@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a8ca482e465d977d8974ad1829dada5, type: 3}
+  m_Name: Room2
+  m_EditorClassIdentifier: Nightmare.Configuration::Nightmare.Configuration.StageDefinition
+  Id: room-2
+  PreparationSeconds: 60
+  DefenseSeconds: 180
+  Enemies:
+  - Prefab: {fileID: 627013582406413171, guid: ad50711cef6328de396e32bed9cc9ccf, type: 3}
+    Weight: 0.2
+  - Prefab: {fileID: 7491229223940276313, guid: a2728d31051a6f64eb4ed8e203ea2b52, type: 3}
+    Weight: 0.8

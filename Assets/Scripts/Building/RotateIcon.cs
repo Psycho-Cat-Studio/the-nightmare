@@ -1,19 +1,20 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class RotateIcon : MonoBehaviour {
+/// <summary>Aligns the minimap player icon with the locally controlled player heading.</summary>
+public class RotateIcon : MonoBehaviour, IMatchParticipant
+{
+    private GameManager _game;
+    public void InitializeMatch(GameManager game) { _game = game; }
+
     private float _playerIconRotation = 0;
     private Quaternion _thisRotation;
     
     void Start() {
-//        _playerIconRotation = GameManager.LocalPlayer.transform.rotation.eulerAngles.y;
         _thisRotation = transform.rotation;
     }
 
-    // Update is called once per frame
     void Update() {
-        if (GameManager.LocalPlayer != null) _playerIconRotation = GameManager.LocalPlayer.transform.rotation.eulerAngles.y;
+        if (_game?.Players.LocalPlayer != null) _playerIconRotation = _game.Players.LocalPlayer.transform.rotation.eulerAngles.y;
         transform.rotation = Quaternion.Euler(90, _thisRotation.y, -_playerIconRotation);
     }
 }

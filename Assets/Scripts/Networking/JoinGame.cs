@@ -1,88 +1,156 @@
-﻿using UnityEngine;
-using UnityEngine.UI;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
-using UnityEngine.Networking;
-using UnityEngine.Networking.Match;
+using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
+// Server list (games found on the LAN) plus a "join by IP" field for internet / VPN play.
+/// <summary>Presents LAN sessions and direct-address joining through the session-service contract.</summary>
 public class JoinGame : MonoBehaviour
 {
+   private const string LAST_ADDRESS_KEY = "LastJoinAddress";
+
    [SerializeField] private GameObject _roomListInst;
    [FormerlySerializedAs("status")] [SerializeField] private TextMeshProUGUI _status;
    [SerializeField] private Transform _roomListParent;
    [SerializeField] private GameObject _panel;
-   private List<GameObject> _roomList = new List<GameObject>();
-   private NetworkManager _networkManager;
+   [Tooltip("Input field cloned to create the address field")]
+   [SerializeField] private InputField _addressFieldTemplate;
+   [Tooltip("Button cloned (next to which the Connect button is placed)")]
+   [SerializeField] private Button _refreshButton;
+   [SerializeField] private Sprite _connectSprite;
+
+   private readonly List<GameObject> _roomList = new List<GameObject>();
+   private InputField _addressField;
+   private Nightmare.Core.Ports.ISessionService _networkManager;
 
    void Start()
    {
-      _networkManager = NetworkManager.singleton;
-      if (_networkManager.matchMaker == null)
-      {
-         _networkManager.StartMatchMaker();
-      }
+      _networkManager = SessionServices.Current;
+      CreateAddressUI();
 
+      if (_networkManager != null)
+      {
+         _networkManager.StatusChanged += OnStatusChanged;
+         _networkManager.Directory.GamesChanged += RefreshRoomList;
+         _networkManager.Directory.StartListening();
+      }
       RefreshRoomList();
+   }
+
+   void OnDestroy()
+   {
+      if (_networkManager != null)
+      {
+         _networkManager.StatusChanged -= OnStatusChanged;
+         _networkManager.Directory.GamesChanged -= RefreshRoomList;
+         _networkManager.Directory.StopListening();
+      }
+   }
+
+   private void CreateAddressUI()
+   {
+      if (_addressFieldTemplate == null || _refreshButton == null) return;
+      Transform column = _refreshButton.transform.parent;
+      int index = _refreshButton.transform.GetSiblingIndex();
+
+      _addressField = Instantiate(_addressFieldTemplate, column, false);
+      _addressField.name = "JoinAddress";
+      _addressField.gameObject.SetActive(true);
+      // Drop the template's persistent bindings (it belongs to the "room name" field).
+      _addressField.onValueChanged = new InputField.OnChangeEvent();
+      _addressField.onEndEdit = new InputField.EndEditEvent();
+      _addressField.onEndEdit.AddListener(_ =>
+      {
+         if (!SettingsMenu.IsOpen && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))) JoinByAddress();
+      });
+      _addressField.contentType = InputField.ContentType.Standard;
+      _addressField.characterLimit = 64;
+      _addressField.text = PlayerPrefs.GetString(LAST_ADDRESS_KEY, "");
+      Text placeholder = _addressField.placeholder as Text;
+      // Short like the "Room name..." placeholder: a longer text wraps and gets clipped away entirely.
+      if (placeholder != null) placeholder.text = "Host IP...";
+      _addressField.transform.SetSiblingIndex(index);
+      var addressSize = _addressField.GetComponent<LayoutElement>() ?? _addressField.gameObject.AddComponent<LayoutElement>();
+      addressSize.minHeight = addressSize.preferredHeight = 90f;
+      addressSize.preferredWidth = 360f;
+      addressSize.flexibleHeight = 0;
+
+      Button connect = Instantiate(_refreshButton, column, false);
+      connect.name = "ConnectButton";
+      connect.onClick = new Button.ButtonClickedEvent();
+      connect.onClick.AddListener(JoinByAddress);
+      if (_connectSprite != null) connect.image.sprite = _connectSprite;
+      connect.transform.SetSiblingIndex(index + 1);
+      var connectSize = connect.GetComponent<LayoutElement>() ?? connect.gameObject.AddComponent<LayoutElement>();
+      connectSize.minHeight = connectSize.preferredHeight = 96f;
+      connectSize.preferredWidth = 300f;
+      connectSize.flexibleHeight = 0;
+      _addressField.ForceLabelUpdate();
    }
 
    public void RefreshRoomList()
    {
       ClearRoomList();
-      _networkManager.matchMaker.ListMatches(0, 20, "", true, 0, 0, OnMatchList);
-      _status.text = "Loading...";
-   }
-
-   public void OnMatchList(bool success, string extendedinfo, List<MatchInfoSnapshot> responsedata)
-   {
-      _status.text = "";
-
-      if (responsedata == null)
+      if (_networkManager == null)
       {
-         _status.text = "Couldn't get room list.";
+         _status.text = "Networking is not available.";
          return;
       }
 
-      foreach (MatchInfoSnapshot response in responsedata)
+      foreach (Nightmare.Core.Ports.SessionListing game in _networkManager.Directory.Games.OrderBy(g => g.Name))
       {
          GameObject roomListItemGO = Instantiate(_roomListInst, _roomListParent, false);
-         roomListItemGO.transform.SetParent(_roomListParent);
-         
-//         
-//         roomListItemGO.transform.GetComponent<RectTransform>().anchorMin = new Vector2(0, 0.5f);
-//         roomListItemGO.transform.GetComponent<RectTransform>().anchorMax = new Vector2(1, 0.5f);
-//         roomListItemGO.transform.GetComponent<RectTransform>().pivot = new Vector2(0, 1);
          ServerListItem item = roomListItemGO.GetComponent<ServerListItem>();
-         if (item != null)
-         {
-            item.Setup(response, JoinRoom);
-         }
-         
-         
+         if (item != null) item.Setup(game, JoinRoom);
          _roomList.Add(roomListItemGO);
       }
 
-      if (_roomList.Count == 0)
-      {
-         _status.text = "No servers found.";
-      }
+      if (!string.IsNullOrEmpty(_networkManager.Status)) _status.text = _networkManager.Status;
+      else if (_roomList.Count == 0)
+         // Kept to one short line: the status sits over the panel title and longer text covered it.
+         _status.text = _networkManager.Directory.IsListening ? "Searching..." : "No LAN search";
+      else _status.text = "";
+   }
+
+   private void OnStatusChanged(string status)
+   {
+      _status.text = status;
+      // Connecting failed or was refused: let the player try again.
+      if (_networkManager != null && !_networkManager.IsNetworkActive) _panel.SetActive(false);
    }
 
    void ClearRoomList()
    {
-      for (int i = 0; i < _roomList.Count; i++)
-      {
-         Destroy(_roomList[i]);
-      }
-      
+      for (int i = 0; i < _roomList.Count; i++) Destroy(_roomList[i]);
       _roomList.Clear();
    }
 
-   public void JoinRoom(MatchInfoSnapshot match)
+   public void JoinRoom(Nightmare.Core.Ports.SessionListing game)
    {
-      _networkManager.matchMaker.JoinMatch(match.networkId, "", "", "", 0, 0, _networkManager.OnMatchJoined);
-      ClearRoomList();
+      Connect(game.Address, game.Port);
+   }
+
+   public void JoinByAddress()
+   {
+      string host;
+      int port;
+      if (_addressField == null || !Nightmare.Core.Ports.SessionAddress.TryParse(_addressField.text, out host, out port))
+      {
+         _status.text = "Enter host IP";
+         return;
+      }
+      PlayerPrefs.SetString(LAST_ADDRESS_KEY, _addressField.text.Trim());
+      PlayerPrefs.Save();
+      Connect(host, port);
+   }
+
+   private void Connect(string host, int port)
+   {
+      if (_networkManager == null || _networkManager.IsNetworkActive) return;
       _panel.SetActive(true);
-      _panel.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = "Joining room...";
+      _panel.transform.GetChild(0).GetComponent<TextMeshProUGUI>().text = "Joining " + host + "...";
+      _networkManager.Join(host, port);
    }
 }

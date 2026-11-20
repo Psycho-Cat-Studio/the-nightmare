@@ -1,0 +1,134 @@
+# Changelog
+
+## Unreleased (`ai` branch)
+
+### Ghost levitation and explosion chains
+- Add subtle time/identity-driven levitation above the existing Ghost animations, inherited by all variants and frozen during death/retirement.
+- Preserve navigation, body/leg colliders, existing poses and gameplay randomness; add motion and animation/hit regression coverage.
+- Verify existing barrel/grenade chain reactions with physical PlayMode and two-peer regression scenarios, including out-of-range barrels and duplicate suppression.
+
+### Explosion sizing and candle build grid
+- Set grenade and trash-can default blast radii to 2.5 m, retaining independent prefab tuning and radius-driven effects.
+- Remove nine placement cells and their visuals from the second candle area in room 2; verify the other five areas.
+
+### Match ownership and stage completion
+- Keep GameManager as a composition root; separate session rules, world registries, wave spawning and player coordination.
+- Remove the numbered-room state map, implicit campaign fallbacks and static game registries; inject instance dependencies at scene/spawn boundaries.
+- Freeze inactive candle areas and dissolve surviving enemies after successful defense, disabling their damage and colliders immediately on authority.
+- Resolve candle/player loss and timer expiry in one place, preserving loss priority at the deadline.
+- Give chairs/tables a persistent readable brown material and include embedded model materials in URP auditing.
+
+### Code readability and API documentation
+- Simplify legacy grid authoring, share lookup identifiers and document owned classes with XML summaries.
+- Remove verified dead components, unused members/imports and commented-out code; guard class documentation and source hygiene in CI.
+- Cover generator geometry and fix skipped child cleanup and optional-chest hierarchy binding.
+- Split shooting, placement, interactions, bootstrap, validation and graphics diagnostics into focused operations while retaining execution order.
+- Share hit/grenade rules and persistent identifiers; author existing weapon handling and spawn cadence as configuration.
+- Add selective XML documentation for core rules and public gameplay contracts, with XML validation in compile checks.
+- Use weapon-definition swap poses and render mapped inventory HUD slots beyond the original three.
+
+### Modular architecture and regression coverage
+- Extract engine-free combat/match rules, content definitions, player runtime and transport contracts using plain Unity/C#.
+- Isolate Mirror Commands/RPCs in adapters; define campaigns through reusable stages and preserve existing balance.
+- Add authored player/scene bindings, stable placement/capture IDs, catalog items and chest grants.
+- Fix walking-enemy melee entry, reload cancellation/completion ownership, duplicate readiness and timer/candle loss ordering.
+- Release occupied placement cells on the server before consumed bricks/bears/barrels disappear, rather than depending on destruction-time RPC delivery.
+- Add EditMode/PlayMode regression suites, a two-process network harness, content/module validation and a regression CI workflow.
+- Document architecture, extension points, code-quality decisions and remaining compatibility boundaries.
+
+### Graphics settings
+- Make candle darkness build earlier while preserving its maximum; keep all crosshair bars visible at low resolutions.
+- Darken the existing distance fog with fading candles; preserve full-candle lighting and reset it between rooms without adding rendering passes.
+- Preserve nighttime brightness at invasion start by avoiding repeated ambient-probe intensity multiplication.
+- Match the foam mat's green to the toy bricks through a persistent URP material remap.
+- Support lower world render resolutions in borderless while preserving native UI and resolution rollback.
+- Add a two-launch native-player check for graphics/display preference persistence.
+- Dim ambient lighting and exposure with the weakest candle area; restore the baseline for each new room.
+- Fix lobby join-column layout, server-list viewport and visible blinking input carets.
+- Remove PPSv1 and its unused OfficeProps demonstration scene/profile; retain gameplay models and URP effects.
+- Clarify rendering quality versus independent effects; keep the frame limit effective across all quality levels by disabling V-Sync.
+- Keep switchable URP bloom, vignette, exposure and advanced effects with shared Off/FXAA anti-aliasing.
+- Render first-person weapons through the native camera stack; fix additive muzzle flashes covering the world with black rectangles.
+- Replace the IMGUI settings window with the existing uGUI menu style, with keyboard navigation and pause-safe Escape handling.
+- Keep persistent windowed/borderless resolutions with a 15-second rollback; remove FSR, TAA and separate weapon settings.
+- Add an opt-in player graphics integration test (`-verifyGraphics`) that restores preferences after testing.
+
+### Rendering
+- Persist the URP pipeline, quality settings, converted materials and camera configuration.
+- Port enemy/particle dissolve, QuickOutline and volumetric explosions to URP; repair missing effect shaders.
+- Replace legacy post-processing with a global bloom/vignette/exposure Volume and use dynamic lighting with Skybox ambient and calibrated candle intensity.
+- Validate build materials and provide an editor host/fight smoke test under The Nightmare → URP.
+
+### Multiplayer
+- Initialize player equipment before shooting components and handle inactive direction arrows when remote players spawn.
+- **Playable online again.** Unity's matchmaking service is gone, so games are now hosted directly:
+  - Same network: hosted games show up in the server list.
+  - Internet: join by IP or use a VPN such as Tailscale/ZeroTier.
+  - Windows, macOS and Linux players can play together.
+- Connection panel (lobby, pause menu, F1) with the host IP, a *Copy IP* button and ping.
+- Readable connection errors. Joining is closed once a match has started.
+- Player names (set in Settings) above teammates. Downed teammates are marked in red with their distance, visible through walls.
+- Other players are shown holding the weapon they actually use.
+- The server now decides damage, health, match phases and enemy movement, so every player sees the same game. This fixes:
+  - monsters standing in different places for different players,
+  - health not updating,
+  - phases and losses happening at different times for different players.
+- Crashes when players had different system languages (e.g. Polish and English) are fixed.
+
+### Gameplay fixes
+- Make local look and sprint responsive without changing movement speeds; smooth ADS and add subtle frame-rate-independent weapon sway/kick.
+- Keep a gentle red edge warning below 30% HP, strongest at 10%, alongside the existing damage flash.
+- Give Ghost tiers matching glowing eyes; replace their fall with the spawn-style green flash and a 1.2-second dissolve.
+- Strengthen Ghost torso/head hit recoil while preserving arm animation and gameplay movement.
+- Let Ghosts fly over bricks without freezing or consuming them; preserve skeleton trap behavior.
+- Restore reliable Ghost candle contact and retry capture after screams or trap freezes.
+- Add a faster, lower-health Ghost with three room tiers, distinct animation/audio and a 20% server spawn chance.
+- Match grenade and trash-can explosion size to their damage radii; enlarge both effects by another 20% while preserving their shared proportions.
+- Flash rejected placement previews red twice, including server rejection, without spending inventory.
+- Initialize enemy HP before initial network replication and remove skeleton-specific death hierarchy assumptions.
+- Enable weapon friendly fire through correct remote hit-collider layers; keep all player damage disabled in lobby and results screens.
+- Initialize player HP on the server before spawn replication instead of overwriting it during client setup.
+- Preserve the original grenade/trash-can explosion animation and sound while adding pooled playback and world-radius ground rings.
+- Scale damage-screen redness with low remaining HP, keeping healthy-player hits subtle.
+- Stop/reset candle alarms and warning icons between rooms and outside combat.
+- Improve death-voice audibility and priority; restore rifle bass/body with a bounded two-voice dry mix.
+- Retain melee contact through enemy screams, without damage before the scream finishes; recover missed trigger enters and handle multiple colliders.
+- Route the room-2 entrance spawn to the other candle area for its first target; use nearest-area retargeting afterwards.
+- Play one short, varied death shriek per enemy and prevent stacked long rifle-shot tails.
+- Show a brief red screen-edge pulse when the local player takes damage, independent of post-processing.
+- Separate low spectral attack growls from the sharper enemy pain shrieks.
+- Add server-confirmed green enemy hit flares, brief torso/head reactions preserving arm poses and varied, audible wraith shrieks without hit-stun or damage changes.
+- Vary skeleton attack animations and spatial attack sounds while retaining existing contact DPS and death priority.
+- Let pain vocals finish across rapid hits and suppress attack voices until pain ends.
+- Keep candle-area contact handling server-only to avoid a client enemy-initialization race during spawning.
+- Limit placeable items to two grid tiles around the player; validate reach and free cells on the server, spending inventory only after confirmation.
+- Restore the immediate T placement preview, aim it through the FPS crosshair and highlight the candidate grid cell yellow.
+- Align grid visuals with physical floors so they do not cut through low traps; clear highlights on cancellation, placement and pause.
+- Weapons:
+  - Fire-mode cycling no longer enables automatic fire on weapons that don't support it.
+  - A weapon can't fire, reload or aim during the swap animation.
+  - Reload needs spare ammo, and the rifle refill no longer exceeds the maximum.
+- Grenades and explosions:
+  - Grenades fly where you aim.
+  - Explosions hit each enemy once (they used to hit up to 3 times); barrels explode once.
+- Pressing E (chests, pickups, revives) no longer triggers through other players' characters. Removing chairs is synced to everyone.
+- Players:
+  - Sprint speed no longer stays reduced after touching a slowing wall.
+  - Mouse movement is no longer partly lost.
+  - Players don't spawn on top of each other in the lobby.
+- Rooms and matches:
+  - Rooms with a single enemy spawn point no longer crash.
+  - Capture areas count enemies correctly, no longer depend on the host's FPS, and turn red when lost.
+  - A second match in the same session works.
+
+### New
+- Settings window: mouse sensitivity, invert Y, FOV, volume, graphics quality, resolution/fullscreen, max FPS, player name.
+- No more hard 50 FPS cap (default 60, configurable up to unlimited), with smooth interpolated player movement.
+- Command line: `-host [-name "Room"] [-port 7777]`, `-connect <ip[:port]>`.
+
+### Under the hood
+- **Unity 6.6** (was 2018.4). Networking moved from UNET, which Unity removed, to **Mirror**, its open-source successor; hosting, joining by IP and LAN discovery work as before (UDP 7777).
+- Removed ~230 MB of unused demo assets.
+- One-click Windows/macOS/Linux builds and releases (GitHub Actions + GameCI).
+- Every PR is checked by: C# compile with the Unity 6.6 compiler for all platforms, scene/prefab integrity, Mirror scene ids and a workflow lint.
+- Music streams from disk instead of being kept decompressed in memory.
