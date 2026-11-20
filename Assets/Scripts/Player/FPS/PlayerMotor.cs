@@ -1,92 +1,91 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Mirror;
 
+[DefaultExecutionOrder(-150)]
 [RequireComponent(typeof(Rigidbody))]
-public class PlayerMotor : NetworkBehaviour {
+public class PlayerMotor : NetworkBehaviour
+{
     [SerializeField] private Camera _cam;
-    private Vector3 _velocity = Vector3.zero;
-    // Look input arrives every frame but the body turns in FixedUpdate: accumulate it so no mouse
-    // movement is lost or applied twice when the frame rate differs from the physics rate.
-    private Vector3 _pendingRotation = Vector3.zero;
-    private float currentCameraRotationX = 0f;
+    [SerializeField] private float _cameraRotationLimit = 85f;
+    private Vector3 _velocity;
+    private float _viewYaw;
+    private float currentCameraRotationX;
+    private float _recoilOffset;
     private Rigidbody _rb;
     private Animator _anim;
-    [SerializeField] private float _cameraRotationLimit = 85f;
-    private float _recoilOffset = 0f;
-    private static readonly int IsSprinting = Animator.StringToHash("isSprinting");
+    private PlayerController _controller;
     public bool isSpeintingToggle;
-    private static readonly int IsAiming = Animator.StringToHash("isAiming");
+    public float ViewYaw => _viewYaw;
+    public Vector3 DesiredVelocity => _velocity;
 
-    void Start() {
-        if(transform.GetChild(0).GetChild(0).gameObject.activeSelf)
-            _anim = transform.GetChild(0).GetChild(0).GetComponent<Animator>();
-        else 
-            _anim = transform.GetChild(0).GetChild(1).GetComponent<Animator>();
+    void Awake()
+    {
         _rb = GetComponent<Rigidbody>();
+        _controller = GetComponent<PlayerController>();
     }
 
-    public void Move(Vector3 velocity) {
-        _velocity = velocity;
+    void Start()
+    {
+        var graphics = transform.GetChild(0);
+        _anim = graphics.GetChild(graphics.GetChild(0).gameObject.activeSelf ? 0 : 1).GetComponent<Animator>();
     }
 
-    void FixedUpdate() {
-        if (ButtonsControll.screensOver && !WinLoseScreens.winLoseActive)
-        {
-            PerformMovement();
-            PerformRotation();
-            DecreaseRecoil();
-        }
-        _pendingRotation = Vector3.zero;
+    void OnEnable()
+    {
+        _viewYaw = transform.eulerAngles.y;
+        _velocity = Vector3.zero;
+        _recoilOffset = 0f;
     }
 
-    // The camera has no physics, so pitch is applied every rendered frame.
-    void LateUpdate() {
-        if (_cam != null) {
-            currentCameraRotationX = Mathf.Clamp(currentCameraRotationX, -_cameraRotationLimit, _cameraRotationLimit);
-            _cam.transform.localEulerAngles = new Vector3(currentCameraRotationX - _recoilOffset, 0f, 0f);
-        }
+    public void Move(Vector3 velocity) { _velocity = velocity; }
+    public void Rotate(Vector3 rotation) { _viewYaw = Mathf.Repeat(_viewYaw + rotation.y, 360f); }
+    public void RotateCamera(float cameraRotation)
+    {
+        currentCameraRotationX = Mathf.Clamp(currentCameraRotationX - cameraRotation,
+            -_cameraRotationLimit, _cameraRotationLimit);
     }
 
-    private void PerformMovement() {
-        if (_velocity != Vector3.zero) {
-            _rb.MovePosition(_rb.position + _velocity * Time.fixedDeltaTime);
-            _anim.SetBool("running", true);
-            if (isLocalPlayer) {
-                if (Input.GetKey(KeyCode.LeftShift) && transform.GetComponent<PlayerEquipment>().getActiveWeapon().State !=
-                                                    Weapon.WeaponState.shooting
-                                                    && !transform.GetComponent<PlayerEquipment>().getActiveWeapon()
-                                                        .GetComponent<Animator>().GetBool("isAiming"))
-                    transform.GetComponent<PlayerEquipment>().getActiveWeapon().GetComponent<Animator>()
-                        .SetBool(IsSprinting, true);
-            }
-        }
-        else {
-            _anim.SetBool("running", false);
-            Weapon weapon = transform.GetComponent<PlayerEquipment>().getActiveWeapon();
-            if (weapon != null) weapon.GetComponent<Animator>().SetBool(IsSprinting, false);
-        }
+    void FixedUpdate()
+    {
+        if (!_controller.CanControl) return;
+        if (_velocity.sqrMagnitude > 0f) _rb.MovePosition(_rb.position + _velocity * Time.fixedDeltaTime);
+        _rb.MoveRotation(Quaternion.Euler(0f, _viewYaw, 0f));
+        if (_anim != null) _anim.SetBool("running", _velocity.sqrMagnitude > 0.0001f);
     }
 
-    // Called once per frame with this frame's look delta.
-    public void Rotate(Vector3 rotation) {
-        _pendingRotation += rotation;
+    void Update()
+    {
+        if (!_controller.CanControl) return;
+        // Exact continuous equivalent of the old 50 Hz decay (offset * .97 - .01).
+        float decay = Mathf.Pow(0.97f, Time.deltaTime * 50f);
+        _recoilOffset = Mathf.Max(0f, (_recoilOffset + 1f / 3f) * decay - 1f / 3f);
     }
 
-    void PerformRotation() {
-        _rb.MoveRotation(_rb.rotation * Quaternion.Euler(_pendingRotation));
+    void LateUpdate()
+    {
+        if (_controller.CanControl) ApplyView();
     }
 
-    // Called once per frame with this frame's pitch delta.
-    public void RotateCamera(float cameraRotation) {
-        currentCameraRotationX -= cameraRotation;
+    public void ApplyView()
+    {
+        if (_cam != null && isLocalPlayer)
+            // World rotation cancels the parent's interpolated yaw without moving its physics body.
+            _cam.transform.rotation = Quaternion.Euler(currentCameraRotationX - _recoilOffset, _viewYaw, 0f);
     }
 
-    public void IncreaseRecoil(float weaponRecoil) {
+    public void IncreaseRecoil(float weaponRecoil)
+    {
         _recoilOffset += weaponRecoil - _recoilOffset * 0.05f;
     }
 
-    private void DecreaseRecoil() {
-        _recoilOffset -= _recoilOffset * 0.03f + 0.01f;
-        if (_recoilOffset < 0) _recoilOffset = 0;
+    public void ClearInput()
+    {
+        _velocity = Vector3.zero;
+        _recoilOffset = 0f;
+        // Discard any unsimulated yaw when controls are hidden or disabled.
+        _viewYaw = transform.eulerAngles.y;
+        if (_anim != null) _anim.SetBool("running", false);
     }
+
+    void OnDisable() { ClearInput(); }
 }

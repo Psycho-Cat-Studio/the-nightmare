@@ -2,6 +2,7 @@
 
 A map of the project for developers coming back to it. Building and CI are covered in
 [BUILDING.md](BUILDING.md); planned work is in [ROADMAP.md](ROADMAP.md).
+Local input, weapon presentation and low-health feedback are described in [PLAYER-FEEL.md](PLAYER-FEEL.md).
 
 ## Getting started
 

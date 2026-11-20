@@ -9,6 +9,11 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
     float _opacity;
     float _lastDamageAt;
     float _pulseStrength;
+    float _pulseOpacity;
+    float _lowHealthOpacity;
+    [SerializeField, Range(0.01f, 1f)] float _lowHealthThreshold = 0.3f;
+    [SerializeField, Range(0f, 1f)] float _criticalHealthThreshold = 0.1f;
+    [SerializeField, Range(0f, 1f)] float _lowHealthMaxOpacity = 0.18f;
 
     public static void Create(HealthBar healthBar)
     {
@@ -35,24 +40,33 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
         {
             _player = player;
             _previousHealth = player != null ? player._currentHealth : 0f;
-            _opacity = 0f;
+            ResetEffect();
         }
         bool hidden = player == null || player.IsDead || !_healthBar.isActiveAndEnabled
             || PauseGame.menuActive || SettingsMenu.IsOpen || WinLoseScreens.winLoseActive
             || !ButtonsControll.screensOver;
         if (hidden)
-            _opacity = 0f;
-        else if (player._currentHealth < _previousHealth - 0.0001f)
+            ResetEffect();
+        else
         {
-            float danger = 1f - Mathf.Clamp01(player._currentHealth / Mathf.Max(1f, player._maxHealth));
-            _pulseStrength = 0.04f + 0.66f * danger * danger;
-            _opacity = _pulseStrength;
-            _lastDamageAt = Time.unscaledTime;
+            float ratio = Mathf.Clamp01(player._currentHealth / Mathf.Max(1f, player._maxHealth));
+            if (player._currentHealth < _previousHealth - 0.0001f)
+            {
+                float danger = 1f - ratio;
+                _pulseStrength = 0.04f + 0.66f * danger * danger;
+                _pulseOpacity = _pulseStrength;
+                _lastDamageAt = Time.unscaledTime;
+            }
+            else if (player._currentHealth > _previousHealth)
+                _pulseOpacity = 0f;
+            else if (Time.unscaledTime - _lastDamageAt > 0.12f)
+                _pulseOpacity = Mathf.MoveTowards(_pulseOpacity, 0f, _pulseStrength * Time.unscaledDeltaTime / 0.55f);
+
+            float target = _lowHealthMaxOpacity * Mathf.SmoothStep(0f, 1f,
+                Mathf.InverseLerp(_lowHealthThreshold, Mathf.Min(_criticalHealthThreshold, _lowHealthThreshold - 0.001f), ratio));
+            _lowHealthOpacity = Mathf.Lerp(_lowHealthOpacity, target, 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
+            _opacity = Mathf.Max(_pulseOpacity, _lowHealthOpacity);
         }
-        else if (player._currentHealth > _previousHealth)
-            _opacity = 0f;
-        else if (Time.unscaledTime - _lastDamageAt > 0.12f)
-            _opacity = Mathf.MoveTowards(_opacity, 0f, _pulseStrength * Time.unscaledDeltaTime / 0.55f);
 
         if (player != null) _previousHealth = player._currentHealth;
         // CanvasRenderer alpha avoids rebuilding the mesh every fade frame.
@@ -86,9 +100,15 @@ public class PlayerDamageOverlay : UnityEngine.UI.MaskableGraphic
         }
     }
 
+    private void ResetEffect()
+    {
+        _opacity = _pulseOpacity = _pulseStrength = _lowHealthOpacity = 0f;
+        _lastDamageAt = 0f;
+    }
+
     protected override void OnDisable()
     {
-        _opacity = 0f;
+        ResetEffect();
         canvasRenderer.SetAlpha(0f);
         base.OnDisable();
     }
